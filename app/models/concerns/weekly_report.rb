@@ -155,4 +155,24 @@ module WeeklyReport
   end
   #protected
 
+  def find_deposit
+    sales = self.total_sales
+    deposit_range = (sales.cents - 1000) .. (sales.cents + 1000)
+    date_range = self.date..self.date+10.days
+    deposit = Transaction.fuel_sale.where(:amount_cents => deposit_range, :date => date_range).first
+    return deposit unless deposit.nil?
+    sales -= Money.new(90000)
+    deposit_range = (sales.cents - 1000) .. (sales.cents + 1000)
+    deposit = Transaction.fuel_sale.where(:amount_cents => deposit_range, :date => date_range).first
+  end
+
+  def total_sales
+    return self.to_date_sales(self) - self.to_date_sales(self.previous_week)
+  end
+
+  def to_date_sales(week)
+    entries = week.dispenser_sales
+    return entries.map{|e| e.regular + e.plus + e.premium + e.diesel}.sum
+  end
+
 end

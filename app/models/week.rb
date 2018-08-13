@@ -22,6 +22,15 @@ class Week < ApplicationRecord
       regular_volume, plus_volume, premium_volume, diesel_volume
   end
 
+  def self.find_deposits(date_range)
+    weeks = Week.where(:date => date_range)
+    weeks.each do |week|
+      deposit = week.find_deposit
+      deposit_id = deposit.nil? ? nil : deposit.id
+      puts "Date:  #{week.date.to_s}  --  deposit_id:  #{deposit_id}"
+    end
+  end
+
   def sales_to_date
     dispenser_rows = self.dispenser_sales
     regular_sales = dispenser_rows.map{|s| s.regular}.sum

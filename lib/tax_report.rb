@@ -1,5 +1,5 @@
 class TaxReport
-  require 'CSV'
+  #require 'CSV'
 
   attr_accessor   :tax_year
   attr_accessor   :annual_lease
@@ -64,8 +64,10 @@ class TaxReport
           :amount_cents => interest.amount.cents, :details => 'Mortgage Interest'})
       end
     end
-    self.credit_total = spreadsheet_rows.select{|r| r[:type] == 'credit'}.map(&:amount_cents).sum
-    self.debit_total = spreadsheet_rows.select{|r| r[:type] == 'debit'}.map(&:amount_cents).sum
+    self.credit_total = spreadsheet_rows.select{|r| r.type == 'credit'}.map(&:amount_cents).sum
+    self.debit_total = spreadsheet_rows.select{|r| r.type == 'debit'}.map(&:amount_cents).sum
+    #self.credit_total = spreadsheet_rows.select{|r| r[:type] == 'credit'}.map(&:amount_cents).sum
+    #self.debit_total = spreadsheet_rows.select{|r| r[:type] == 'debit'}.map(&:amount_cents).sum
     self.do_spreadsheet
     return
     category_rows = Transaction.tax_year(self.tax_year).group(:category).select(:category).count
@@ -120,10 +122,21 @@ class TaxReport
       end
       row += 1
     end
+    row += 1
+    sheet.row(row).set_format(0,left_justified_format)
+    sheet.row(row).set_format(1,left_justified_format)
+    sheet.row(row).set_format(2,right_justified_format)
+    sheet.row(row).set_format(3,right_justified_format)
+    total_debit = spreadsheet_rows.select{|r| r.type == 'debit'}.
+      map(&:amount_cents).map{|cents| Money.new(cents)}.sum.to_f
+    total_credit = spreadsheet_rows.select{|r| r.type == 'credit'}.
+      map(&:amount_cents).map{|cents| Money.new(cents)}.sum.to_f
+    sheet.row(row).push 'TOTAL', nil, total_debit, total_credit
 
     #self.autofit(sheet)
 
-    file_path = File.expand_path("~/Documents/jr_tax_info_#{self.tax_year}")
+    #file_path = File.expand_path("~/Documents/jr/dispenser_reports/week_#{week.number.to_s.rjust(2,'0')}_#{week.date.year}.xls")
+    file_path = File.expand_path("~/Documents/jr/tax_reports/jr_tax_info_#{self.tax_year}")
     book.write file_path
   end
 
