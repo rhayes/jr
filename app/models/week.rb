@@ -8,8 +8,8 @@ class Week < ApplicationRecord
   scope		:tax_year, lambda{|year| where(:tax_year => year)}
   scope   :week_number, lambda{|no,year| where(:number => no, :tax_year => year)}
 
-  def self.dispenser_totals(week)
-    dispenser_sales = week.dispenser_sales
+  def dispenser_totals
+    dispenser_sales = self.dispenser_sales
     regular_volume = dispenser_sales.map(&:regular_volume).sum
     plus_volume = dispenser_sales.map(&:plus_volume).sum
     premium_volume = dispenser_sales.map(&:premium_volume).sum
@@ -145,6 +145,10 @@ class Week < ApplicationRecord
     return sales
   end
 
+  def fuel_profit
+    return WeekEstimatedProfit.week_report(self)
+  end
+
   def estimated_gross_profit
     grades = gather_delivery_stats
     net_volume = self.net_volume
@@ -227,4 +231,47 @@ class Week < ApplicationRecord
     return grades
   end
 
+  def self.fuel_reconcile(weeks)
+    results = []
+    weeks.each do |current_week|
+      previous_week = current_week.previous_week
+      net_sales = DispenserSalesTotal.net_sales_for_period(previous_week, current_week, false)
+      volume_previous_week = previous_week.tank_volume
+      volume_current_week = current_week.tank_volume
+      deliveries = current_week.fuel_deliveries
+      ['regular', 'premium', 'diesel'].each do |grade|
+        fuel_grade = grade == 'premium' ? 'supreme_gallons' : grade + "_gallons"
+        results << {'grade' => grade,
+          'tank_volume_previous_week' => volume_previous_week.public_send(grade),
+          'tank_volume_current_week' => volume_current_week.public_send(grade),
+          'dispenser_sales' => net_sales.public_send(grade).gallons,
+          'delivered_gallons' => deliveries.map{|d| d.public_send(fuel_grade)}.sum}
+      end
+    end
+    return results
+  end
+
+  def self.fuel_reconcile_period(weeks)
+    results = []
+    beginning_tank_volume = weeks.first.previous_week.tank_volume
+    ending_tank_volume = weeks.last.tank_volume
+    deliveries = weeks.flat_map{|w| w.fuel_deliveries}
+    net_sales = DispenserSalesTotal.net_sales_for_period(weeks.first.previous_week, weeks.last, false)
+    regular_gallons = deliveries.map(&:regular_gallons).sum
+    premium_gallons = deliveries.map(&:supreme_gallons).sum
+    diesel_gallons = deliveries.map(&:diesel_gallons).sum
+    regular_hash = {'beginning_volume' => beginning_tank_volume.regular,
+      'gallons_delivered' => regular_gallons, 'gallons_sold' => net_sales.regular.gallons.to_i,
+      'ending_tank_volume' => ending_tank_volume.regular,
+      'calculated_volume' => beginning_tank_volume.regular - net_sales.regular.gallons.to_i + regular_gallons}
+    premium_hash = {'beginning_volume' => beginning_tank_volume.premium,
+      'gallons_delivered' => premium_gallons, 'gallons_sold' => net_sales.premium.gallons.to_i,
+      'ending_tank_volume' => ending_tank_volume.premium,
+      'calculated_volume' => beginning_tank_volume.premium - net_sales.premium.gallons.to_i + premium_gallons}
+    diesel_hash = {'beginning_volume' => beginning_tank_volume.diesel,
+      'gallons_delivered' => diesel_gallons, 'gallons_sold' => net_sales.diesel.gallons.to_i,
+      'ending_tank_volume' => ending_tank_volume.diesel,
+      'calculated_volume' => beginning_tank_volume.diesel - net_sales.diesel.gallons.to_i + diesel_gallons}
+    return {'regular' => regular_hash, 'premium' => premium_hash, 'diesel' => diesel_hash}
+  end
 end

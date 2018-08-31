@@ -121,8 +121,10 @@ module WeeklyReport
   end
 
   def week_profit
-    total_last_week = Week.dispenser_totals(self.previous_week)
-    total_this_week = Week.dispenser_totals(self)
+    #total_last_week = Week.dispenser_totals(self.previous_week)
+    #total_this_week = Week.dispenser_totals(self)
+    total_last_week = self.previous_week.dispenser_totals
+    total_this_week = self.dispenser_totals
     array = []
     grades = ['regular', 'plus', 'premium', 'diesel']
     rates_per_gallon = self.last_rate_per_gallon

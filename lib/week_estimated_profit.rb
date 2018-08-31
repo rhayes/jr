@@ -153,6 +153,7 @@ class WeekEstimatedProfit < HashManager
 
     file_path = File.expand_path("~/Documents/jr/fuel_reports/week_of_#{week.date.to_s.gsub("-","_")}.xls")
     book.write file_path
+    return report
   end
 
   def self.set_row_format(row, format0, format1, format2, format3, format4, format5)
@@ -171,7 +172,7 @@ class WeekEstimatedProfit < HashManager
   end
 
   def build
-    net_sales = DispenserSalesTotal.net_sales_for_period(week.previous_week, week)
+    net_sales = DispenserSalesTotal.net_sales_for_period(week.previous_week, week, false)
     grade_totals = GradeTotal.new(self.week, net_sales)
     grade_totals.build_grades
     total_profit_row = self.profit.total
@@ -206,6 +207,7 @@ class WeekEstimatedProfit < HashManager
 
     def initialize(week, net_sales)
       @week = week
+=begin
       plus_amount_half = net_sales.plus.amount / 2.0
       plus_gallons_half = net_sales.plus.gallons / 2.0
       regular_hash = {'name' => 'regular', 'amount' => net_sales.regular.amount + plus_amount_half,
@@ -217,6 +219,18 @@ class WeekEstimatedProfit < HashManager
       diesel_hash = {'name' => 'diesel', 'amount' => net_sales.diesel.amount,
         'estimated_per_gallon' => 0.0, 'gallons_sold' => net_sales.diesel.gallons.round(2).to_i,
         'net_profit' => 0.0, 'deliveries' => []}
+      plus_amount_half = net_sales.plus.amount / 2.0
+      plus_gallons_half = net_sales.plus.gallons / 2.0
+=end
+      regular_hash = {'name' => 'regular', 'amount' => net_sales.regular.amount,
+        'gallons_sold' => net_sales.regular.gallons.round(2).to_i,
+        'estimated_per_gallon' => 0.0, 'net_profit' => 0.0, 'deliveries' => []}
+      premium_hash = {'name' => 'supreme', 'amount' => net_sales.premium.amount,
+        'gallons_sold' => net_sales.premium.gallons.round(2).to_i,
+        'estimated_per_gallon' => 0.0, 'net_profit' => 0.0, 'deliveries' => []}
+      diesel_hash = {'name' => 'diesel', 'amount' => net_sales.diesel.amount,
+        'gallons_sold' => net_sales.diesel.gallons.round(2).to_i,
+        'estimated_per_gallon' => 0.0, 'net_profit' => 0.0, 'deliveries' => []}
       hash = {'regular' => Grade.new('regular',regular_hash),
         'premium' => Grade.new('premium',premium_hash),
         'diesel' => Grade.new('diesel',diesel_hash),}
@@ -259,7 +273,7 @@ class WeekEstimatedProfit < HashManager
       def delivered_per_gallon_column
         return self.name + "_per_gallon"
       end
-
+=begin
       def build(week)
         fuel_deliveries = FuelDelivery.where("delivery_date < ?",week.date).
           where("#{delivered_gallons_column} > 0").order("delivery_date desc")
@@ -281,6 +295,45 @@ class WeekEstimatedProfit < HashManager
         self.deliveries.last.applied_gallons -= (accumulated_gallons - self.gallons_sold)
         self.estimated_per_gallon = (self.deliveries.inject(0.0) {|total,d|
           total += d.per_gallon * d.applied_gallons; total} / self.gallons_sold.to_f) + 0.07
+        self.net_profit = self.amount.to_f - (self.estimated_per_gallon * self.gallons_sold)
+      end
+=end
+      def build(week)
+        current_volume = week.tank_volume[self.grade]
+        fuel_deliveries = FuelDelivery.where("delivery_date <= ?",week.date).
+          where("#{delivered_gallons_column} > 0").order("delivery_date desc")
+        accumulated_gallons = 0
+        fuel_deliveries.each do |fuel_delivery|
+          delivered_gallons = fuel_delivery[delivered_gallons_column]
+          if current_volume >= delivered_gallons
+            current_volume -= delivered_gallons
+            self.deliveries << HashManager.new({'id' => fuel_delivery.id,
+              'date' => fuel_delivery.delivery_date,
+              'per_gallon' => fuel_delivery[delivered_per_gallon_column].to_f,
+              'total_gallons' => fuel_delivery[delivered_gallons_column],
+              'applied_gallons' => 0})
+            next
+          else
+            applied_gallons = remaining_gallons = delivered_gallons - current_volume
+            accumulated_gallons += remaining_gallons
+            if accumulated_gallons > self.gallons_sold
+              applied_gallons -= (accumulated_gallons - self.gallons_sold)
+              accumulated_gallons -= (remaining_gallons - applied_gallons)
+            end
+            current_volume -= (delivered_gallons - applied_gallons) unless current_volume == 0
+          end
+          self.deliveries << HashManager.new({'id' => fuel_delivery.id,
+            'date' => fuel_delivery.delivery_date,
+            'per_gallon' => fuel_delivery[delivered_per_gallon_column].to_f,
+            'total_gallons' => fuel_delivery[delivered_gallons_column],
+            'applied_gallons' => applied_gallons})
+          break if accumulated_gallons == self.gallons_sold
+        end
+        #self.deliveries.last.applied_gallons -= (accumulated_gallons - self.gallons_sold)
+        self.estimated_per_gallon = self.deliveries.map{|d|
+          d.applied_gallons * d.per_gallon}.sum / self.gallons_sold + 0.07
+        #self.estimated_per_gallon = (self.deliveries.inject(0.0) {|total,d|
+        #  total += d.per_gallon * d.applied_gallons; total} / self.gallons_sold.to_f) + 0.07
         self.net_profit = self.amount.to_f - (self.estimated_per_gallon * self.gallons_sold)
       end
 

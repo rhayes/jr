@@ -6,7 +6,7 @@ class DispenserSale < ActiveRecord::Base
   monetize 	:plus_cents, with_model_currency: :plus_currency
   monetize 	:premium_cents, with_model_currency: :premium_currency
   monetize 	:diesel_cents, with_model_currency: :diesel_currency
-
+=begin
   def self.dispenser_totals_for_week(week_id)
     entries = self.where(:week_id => week_id)
     dispensers = entries.map(&:number).uniq
@@ -15,6 +15,7 @@ class DispenserSale < ActiveRecord::Base
 
     end
   end
+=end
 
   def self.sales_by_grade(week_id)
     entries = self.where(:week_id => week_id)
