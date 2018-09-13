@@ -121,7 +121,7 @@ class WeekEstimatedProfit < HashManager
     sheet.merge_cells(0, 0, 0, 5)
     sheet.row(0).default_format = title_format
     beg_date = week.date - 6.days
-    sheet.row(0).push "Estimate profit for #{beg_date.to_s} - #{week.date.to_s}"
+    sheet.row(0).push "Estimated profit for #{beg_date.to_s} - #{week.date.to_s}"
     sheet.row(1).default_format = header_format
     sheet.row(1).push "", "Gallons", "Retail", "Cost", "Net", 'Per Gallon'
 =begin
@@ -207,21 +207,6 @@ class WeekEstimatedProfit < HashManager
 
     def initialize(week, net_sales)
       @week = week
-=begin
-      plus_amount_half = net_sales.plus.amount / 2.0
-      plus_gallons_half = net_sales.plus.gallons / 2.0
-      regular_hash = {'name' => 'regular', 'amount' => net_sales.regular.amount + plus_amount_half,
-        'estimated_per_gallon' => 0.0, 'gallons_sold' => (net_sales.regular.gallons +
-        plus_gallons_half).round(2).to_i, 'net_profit' => 0.0, 'deliveries' => []}
-      premium_hash = {'name' => 'supreme', 'amount' => net_sales.premium.amount + plus_amount_half,
-        'estimated_per_gallon' => 0.0, 'gallons_sold' => (net_sales.premium.gallons +
-        plus_gallons_half).round(2).to_i, 'net_profit' => 0.0, 'deliveries' => []}
-      diesel_hash = {'name' => 'diesel', 'amount' => net_sales.diesel.amount,
-        'estimated_per_gallon' => 0.0, 'gallons_sold' => net_sales.diesel.gallons.round(2).to_i,
-        'net_profit' => 0.0, 'deliveries' => []}
-      plus_amount_half = net_sales.plus.amount / 2.0
-      plus_gallons_half = net_sales.plus.gallons / 2.0
-=end
       regular_hash = {'name' => 'regular', 'amount' => net_sales.regular.amount,
         'gallons_sold' => net_sales.regular.gallons.round(2).to_i,
         'estimated_per_gallon' => 0.0, 'net_profit' => 0.0, 'deliveries' => []}
