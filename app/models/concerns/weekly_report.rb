@@ -34,6 +34,7 @@ module WeeklyReport
     sheet.row(3).default_format = header_format
     sheet.row(3).push "", "Sales", "Gallons", "Money", "Volume", "Sales", "Gallons", "Sales", "Gallons"
     sales_rows = week.dispenser_sales.order("number")
+    sales_rows = week.dispenser_sales_with_offset
     row = nil
     left_format = Spreadsheet::Format.new(:horizontal_align => :left, :size =>10)
 		centre_format = Spreadsheet::Format.new(:horizontal_align => :centre, :size =>10)
@@ -54,20 +55,20 @@ module WeeklyReport
     sales_rows.each_with_index do |sales_row, index|
       row = index + 4
       sheet.row(row).push sales_row.number,
-        sales_row.regular.to_f, sales_row.regular_volume,
-        sales_row.plus.to_f, sales_row.plus_volume,
-        sales_row.premium.to_f, sales_row.premium_volume,
-        sales_row.diesel.to_f, sales_row.diesel_volume
+        sales_row.regular_cents.to_f / 100.0, sales_row.regular_volume,
+        sales_row.plus_cents.to_f / 100.0, sales_row.plus_volume,
+        sales_row.premium_cents.to_f / 100.0, sales_row.premium_volume,
+        sales_row.diesel_cents.to_f / 100.0, sales_row.diesel_volume
     end
     row += 1
 
-    regular_money_total = sales_rows.map{|s| s.regular}.sum.to_f
+    regular_money_total = sales_rows.map{|s| s.regular_cents}.sum.to_f / 100.0
     regular_volume_total = sales_rows.map{|s| s.regular_volume}.sum
-    plus_money_total = sales_rows.map{|s| s.plus}.sum.to_f
+    plus_money_total = sales_rows.map{|s| s.plus_cents}.sum.to_f / 100.0
     plus_volume_total = sales_rows.map{|s| s.plus_volume}.sum
-    premium_money_total = sales_rows.map{|s| s.premium}.sum.to_f
+    premium_money_total = sales_rows.map{|s| s.premium_cents}.sum.to_f / 100.0
     premium_volume_total = sales_rows.map{|s| s.premium_volume}.sum
-    diesel_money_total = sales_rows.map{|s| s.diesel}.sum.to_f
+    diesel_money_total = sales_rows.map{|s| s.diesel_cents}.sum.to_f / 100.0
     diesel_volume_total = sales_rows.map{|s| s.diesel_volume}.sum
 
     sheet.row(row).push "TOTAL", regular_money_total, regular_volume_total,
@@ -77,15 +78,16 @@ module WeeklyReport
 
     last_week = Week.where("id < ?",week.id).last
     unless last_week.nil?
-      sales_rows = last_week.dispenser_sales.order("number")
+      #sales_rows = last_week.dispenser_sales.order("number")
+      sales_rows = last_week.dispenser_sales_with_offset
       unless sales_rows.empty?
-        previous_regular_money_total = regular_money_total - sales_rows.map{|s| s.regular}.sum.to_f
+        previous_regular_money_total = regular_money_total - sales_rows.map{|s| s.regular_cents}.sum.to_f / 100.0
         previous_regular_volume_total = regular_volume_total - sales_rows.map{|s| s.regular_volume}.sum
-        previous_plus_money_total = plus_money_total - sales_rows.map{|s| s.plus}.sum.to_f
+        previous_plus_money_total = plus_money_total - sales_rows.map{|s| s.plus_cents}.sum.to_f / 100.0
         previous_plus_volume_total = plus_volume_total - sales_rows.map{|s| s.plus_volume}.sum
-        previous_premium_money_total = premium_money_total - sales_rows.map{|s| s.premium}.sum.to_f
+        previous_premium_money_total = premium_money_total - sales_rows.map{|s| s.premium_cents}.sum.to_f / 100.0
         previous_premium_volume_total = premium_volume_total - sales_rows.map{|s| s.premium_volume}.sum
-        previous_diesel_money_total = diesel_money_total - sales_rows.map{|s| s.diesel}.sum.to_f
+        previous_diesel_money_total = diesel_money_total - sales_rows.map{|s| s.diesel_cents}.sum.to_f / 100.0
         previous_diesel_volume_total = diesel_volume_total - sales_rows.map{|s| s.diesel_volume}.sum
 
         sheet.row(row+1).push "WEEK",

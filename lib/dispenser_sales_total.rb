@@ -16,11 +16,31 @@ class DispenserSalesTotal < HashManager
       sales_total_first_week = DispenserSalesTotal.new(first_week, blended)
       sales_total_last_week = DispenserSalesTotal.new(last_week, blended)
       DispenserSalesTotal.function_names(blended).each do |function_name|
-        value = sales_total_last_week.get_value(function_name) -
-          sales_total_first_week.get_value(function_name)
+        value = self.difference(sales_total_first_week, sales_total_last_week, function_name)
         net_sales.set_value(function_name, value)
       end
       return net_sales
+    end
+
+    def self.difference(sales_total_first_week, sales_total_last_week, function_name)
+      translation = {"regular.amount" =>"regular_cents", "regular.gallons" => "regular_gallons",
+         "plus.amount" => "plus_cents", "plus.gallons" => "plus_gallons",
+         "premium.amount" => "premium_cents", "premium.gallons" => "premium_gallons",
+         "diesel.amount" => "diesel_cents", "diesel.gallons" => "diesel_gallons"}
+
+      grade_type = translation[function_name]
+      first_week_offset = last_week_offset = 0.0
+      first_week = sales_total_first_week.week
+      last_week = sales_total_last_week.week
+      [1,2,3,4,5,6].each do |number|
+        first_week_offset += DispenserOffset.dispenser(number).grade_type(grade_type).
+          where("start_date <= ?", first_week.date).order(:start_date).last.offset.to_f
+        last_week_offset += DispenserOffset.dispenser(number).grade_type(grade_type).
+          where("start_date <= ?", last_week.date).order(:start_date).last.offset.to_f
+      end
+      last_week_value = sales_total_last_week.get_value(function_name)
+      first_week_value = sales_total_first_week.get_value(function_name)
+      return (last_week_value + last_week_offset) - (first_week_value + first_week_offset)
     end
 =begin
     def self.net_sales_for_period(first_week, last_week, blended = false)

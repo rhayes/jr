@@ -315,8 +315,8 @@ class WeekEstimatedProfit < HashManager
           break if accumulated_gallons == self.gallons_sold
         end
         #self.deliveries.last.applied_gallons -= (accumulated_gallons - self.gallons_sold)
-        self.estimated_per_gallon = self.deliveries.map{|d|
-          d.applied_gallons * d.per_gallon}.sum / self.gallons_sold + 0.07
+        self.estimated_per_gallon = (self.deliveries.map{|d|
+          d.applied_gallons * d.per_gallon}.sum / self.gallons_sold) + 0.07
         #self.estimated_per_gallon = (self.deliveries.inject(0.0) {|total,d|
         #  total += d.per_gallon * d.applied_gallons; total} / self.gallons_sold.to_f) + 0.07
         self.net_profit = self.amount.to_f - (self.estimated_per_gallon * self.gallons_sold)

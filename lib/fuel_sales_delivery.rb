@@ -20,6 +20,10 @@ class FuelSalesDelivery
     book = Spreadsheet::Workbook.new
 		sheet = book.create_worksheet
     (0..9).each {|cell| sheet.column(cell).width = 15}
+    start_week = weeks.first.previous_week
+    start_date = report.format_date(weeks.first.date - 6.days)
+    end_date = report.format_date(weeks.last.date)
+    report_date_range = "#{start_date} thru #{end_date}"
 
 		title_format = Spreadsheet::Format.new :horizontal_align => :centre, :size => 14
 		header_format = Spreadsheet::Format.new :horizontal_align => :centre, :size => 12
@@ -27,6 +31,7 @@ class FuelSalesDelivery
     right_justified_format = Spreadsheet::Format.new :horizontal_align => :right, :size => 12, :number_format => '#,###,##0.00'
     per_gallon_format = Spreadsheet::Format.new :horizontal_align => :right, :size => 12, :number_format => '####0.00'
     centre_justified_format = Spreadsheet::Format.new :horizontal_align => :centre, :size => 12
+    centre_format_with_wrap = Spreadsheet::Format.new :horizontal_align => :centre, :size => 12, :text_wrap => true
 
     sheet.merge_cells(0, 0, 0, 9)
     sheet.merge_cells(2, 1, 2, 3)
@@ -38,7 +43,7 @@ class FuelSalesDelivery
     sheet.row(2).default_format = header_format
     sheet.row(3).default_format = header_format
 
-    sheet.row(0).push "Sales/Deliveries  #{weeks.first.date.to_s} thru #{weeks.last.date.to_s}"
+    sheet.row(0).push "Sales/Deliveries  #{report_date_range}"
     sheet.row(2).push '', 'Delivered', '', '', 'Sold', '', '', 'Balance'
     sheet.row(3).push 'Week', 'Regular', 'Premium', 'Diesel', 'Regular', 'Premium', 'Diesel', 'Regular', 'Premium', 'Diesel'
 
@@ -62,7 +67,7 @@ class FuelSalesDelivery
     row += 1
     sheet.row(row).default_format = centre_justified_format
     sheet.row(row).push "", "Regular", "Plus", "Premium", "Diesel"
-    titles = ['First Week', 'Last Week', 'Total', 'Total by grade', 'Delivered', 'Balance']
+    titles = ['First Week', 'Last Week', 'Sales', 'Sales by grade', 'Delivered', 'difference']
     report.sales.to_hash.keys.each_with_index do |key,index|
       row += 1
       sheet.row(row).default_format = right_justified_format
@@ -72,19 +77,24 @@ class FuelSalesDelivery
     end
 
     row += 3
-    sheet.merge_cells(row, 1, row, 3)
+    sheet.merge_cells(row, 0, row, 4)
     sheet.row(row).default_format = centre_justified_format
-    sheet.row(row).push "", "Tank Volume - Actual vs Calculated"
+    sheet.row(row).push "Actual vs Calculated tank tank_volume #{report_date_range}"
     row += 1
     sheet.row(row).default_format = centre_justified_format
-    sheet.row(row).push "", "Regular", "Premium", "Diesel"
+    sheet.merge_cells(row, 0, row, 1)
+    sheet.row(row).push "", "", "Regular", "Premium", "Diesel"
     grades = ["Regular", "Premium", "Diesel"]
-    titles = ['First Week', 'Sales', 'Delivered', 'Calculated', 'Last Week', 'Difference']
+    #titles = ['First week vol', 'Sales', 'Delivered', 'Calculated vol', 'Last week vol', 'Difference']
+    titles = ["Tank volume as of #{report.format_date(start_week.date)}",
+      'Sales', 'Delivered', 'Calculated vol',
+      "Tank volume as of #{report.format_date(weeks.last.date)}", 'Difference']
     titles.each_with_index do |title,index|
       row += 1
+      sheet.merge_cells(row, 0, row, 1)
       sheet.row(row).default_format = right_justified_format
       sheet.row(row).set_format(0, left_justified_format)
-      sheet.row(row).push title
+      sheet.row(row).push title, ""
       week_before_volumes = report.tank_volume_results.get_values("week_before")
       sold = report.total_results.get_values_by_key('sold')
       delivered = report.total_results.get_values_by_key('delivered')
@@ -108,7 +118,35 @@ class FuelSalesDelivery
       end
     end
 
-    file_path = File.expand_path("~/Documents/jr/fuel_reports/sales_deliveries.xls")
+    row += 3
+    sheet.merge_cells(row, 0, row, 7)
+    sheet.row(row).default_format = centre_justified_format
+    sheet.row(row).push "Fuel Deliveries for report period"
+    row += 1
+    sheet.row(row).default_format = centre_format_with_wrap
+    sheet.row(row).push "Week", "Invoice Number", "Delivery Date", "Regular Gallons",
+      "Premium Gallons", "Diesel Gallons", "Transaction Date", "Amount"
+    columns = report.fuel_deliveries.first.to_hash.keys unless report.fuel_deliveries.empty?
+    week_date = nil
+    report.fuel_deliveries.each do |delivery|
+      row += 1
+      columns.each_with_index do |column,index|
+        value = delivery.public_send(column)
+        if value.is_a?(Date)
+          sheet.row(row).set_format(index, centre_justified_format)
+          sheet.row(row).push value.to_s
+        else
+          sheet.row(row).set_format(index, right_justified_format)
+          sheet.row(row).push value
+        end
+      end
+      if delivery.week_date == week_date
+        week_date = delivery.week_date
+        sheet.row(row)[0].push ""
+      end
+    end
+
+    file_path = File.expand_path("~/Documents/jr/sales_reports/sales_versus_deliveries_#{weeks.last.date.to_s}.xls")
     book.write file_path
     return report
 
@@ -144,15 +182,16 @@ class FuelSalesDelivery
     self.fuel_deliveries = []
     total_fuel_deliveries.each do |delivery|
       transaction = delivery.fuel_transaction
-      transaction.date = transaction.amount = nil
+      transaction_date = transaction_amount = nil
       unless transaction.nil?
-        transaction.date = transaction.date.to_s
-        transaction.amount = transaction.amount.to_f
+        transaction_date = transaction.date
+        transaction_amount = transaction.amount.to_f
       end
-      self.fuel_deliveries << HashManager.new({'invoice_number' => delivery.invoice_number,
+      self.fuel_deliveries << HashManager.new({'week_date' => delivery.week.date,
+        'invoice_number' => delivery.invoice_number,
         'delivery_date' => delivery.delivery_date, 'regular' => delivery.regular_gallons,
         'premium' => delivery.supreme_gallons, 'diesel' => delivery.diesel_gallons,
-        'transaction_date' => transaction.date, 'amount' => transaction.amount})
+        'transaction_date' => transaction_date, 'amount' => transaction_amount})
     end
     return self.weekly_results, self.total_results
   end
@@ -174,6 +213,10 @@ class FuelSalesDelivery
       'delivered' => {'regular' => delivered.regular, 'premium' => delivered.premium, 'diesel' => delivered.diesel},
       'sold' => {'regular' => net_sales.regular.gallons, 'premium' => net_sales.premium.gallons, 'diesel' => net_sales.diesel.gallons},
       'balance' => {'regular' => balance.regular, 'premium' => balance.premium, 'diesel' => balance.diesel}})
+  end
+
+  def format_date(date)
+    date.strftime("%m/%d/%Y")
   end
 
   class SingleWeek < HashManager

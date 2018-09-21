@@ -274,4 +274,33 @@ class Week < ApplicationRecord
       'calculated_volume' => beginning_tank_volume.diesel - net_sales.diesel.gallons.to_i + diesel_gallons}
     return {'regular' => regular_hash, 'premium' => premium_hash, 'diesel' => diesel_hash}
   end
+
+  def dispenser_sales_with_offset
+    names = DispenserSale.columns.map{|c| c.name}.select{|c| c.include?("_cents") || c.include?("_volume")}.sort
+    translation = names.inject({}) {|hash,name| hash[name] = name.gsub("_volume","_gallons");hash}
+    column_names = names.inject([]) {|array,name| array << name.gsub("_volume","_gallons");array}
+    sales = self.dispenser_sales.order(:number)
+    results = []
+    sales.each do |sale|
+      object_hash = {}
+      sales_hash = sale.as_json.each do |key,value|
+        object_hash[key] = value
+        unless (column = translation[key]).nil?
+          offset = DispenserOffset.get_offset(sale.number, column, self.date)
+          object_hash[key] += offset
+        end
+        next
+        if translation[key].nil?
+          object_hash[key] = value
+        else
+          column = translation[key]
+          offset = DispenserOffset.get_offset(sale.number, column, self.date)
+          puts "#{sale.number}  --  #{column}  --  #{value}  --  #{offset}"
+          object_hash[column] = value + offset
+        end
+      end
+      results << HashManager.new(object_hash)
+    end
+    return results
+  end
 end
