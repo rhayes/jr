@@ -104,11 +104,11 @@ class WeekEstimatedProfit < HashManager
     report = WeekEstimatedProfit.create(week)
     book = Spreadsheet::Workbook.new
 		sheet = book.create_worksheet
-    sheet.column(0).width = 25
-    sheet.column(1).width = 25
+    sheet.column(0).width = 15
+    sheet.column(1).width = 15
     sheet.column(2).width = 18
     sheet.column(3).width = 18
-    sheet.column(4).width = 18
+    sheet.column(4).width = 15
     sheet.column(5).width = 18
 
 		title_format = Spreadsheet::Format.new :horizontal_align => :centre, :size => 16
@@ -123,7 +123,7 @@ class WeekEstimatedProfit < HashManager
     beg_date = week.date - 6.days
     sheet.row(0).push "Estimated profit for #{beg_date.to_s} - #{week.date.to_s}"
     sheet.row(1).default_format = header_format
-    sheet.row(1).push "", "Gallons", "Retail", "Cost", "Net", 'Per Gallon'
+    sheet.row(1).push "Grade", "Gallons", "Retail", "Cost", "Net", 'Per Gallon'
 =begin
     row = 2
     regular = report.profit.regular
@@ -137,11 +137,12 @@ class WeekEstimatedProfit < HashManager
     sheet.row(row).push regular.net.to_f
     sheet.row(row).push regular.net.to_f / regular.gallons_sold
 =end
+    row = nil
     (FUEL_GRADES + ["total"]).each_with_index do |grade,index|
       row = index + 2
       data = report.profit.public_send(grade)
-      self.set_row_format(sheet.row(row), centre_justified_format,
-        centre_justified_format, right_justified_format, right_justified_format,
+      self.set_row_format(sheet.row(row), left_justified_format,
+        right_justified_format, right_justified_format, right_justified_format,
         right_justified_format, per_gallon_format)
       sheet.row(row).push grade.titleize
       sheet.row(row).push data.gallons_sold
@@ -149,6 +150,28 @@ class WeekEstimatedProfit < HashManager
       sheet.row(row).push data.cost.to_f
       sheet.row(row).push data.net.to_f
       sheet.row(row).push data.net.to_f / data.gallons_sold
+    end
+
+    ['regular', 'premium', 'diesel'].each do |grade|
+      row += 3
+      sheet.merge_cells(row, 0, row, 5)
+      sheet.row(row).default_format = header_format
+      sheet.row(row).push "#{grade.capitalize} grade deliveries"
+      row +=1
+      sheet.row(row).default_format = header_format
+      sheet.row(row).push "Date", "Invoice No", "Rate", "Gallons", "Applied", "Total Applied"
+      deliveries = report.grade_totals.public_send(grade).deliveries
+      total_applied_gallons = 0
+      deliveries.each_with_index do |delivery, index|
+        row += 1
+        self.set_row_format(sheet.row(row), centre_justified_format,
+          centre_justified_format, per_gallon_format, right_justified_format,
+          right_justified_format, right_justified_format)
+        total_applied_gallons += delivery.applied_gallons
+        sheet.row(row).push delivery.date.to_s, delivery.invoice_number,
+          delivery.per_gallon, delivery.total_gallons,
+          delivery.applied_gallons, total_applied_gallons
+      end
     end
 
     file_path = File.expand_path("~/Documents/jr/fuel_reports/week_of_#{week.date.to_s.gsub("-","_")}.xls")
@@ -294,6 +317,7 @@ class WeekEstimatedProfit < HashManager
             current_volume -= delivered_gallons
             self.deliveries << HashManager.new({'id' => fuel_delivery.id,
               'date' => fuel_delivery.delivery_date,
+              'invoice_number' => fuel_delivery.invoice_number,
               'per_gallon' => fuel_delivery[delivered_per_gallon_column].to_f,
               'total_gallons' => fuel_delivery[delivered_gallons_column],
               'applied_gallons' => 0})
@@ -309,6 +333,7 @@ class WeekEstimatedProfit < HashManager
           end
           self.deliveries << HashManager.new({'id' => fuel_delivery.id,
             'date' => fuel_delivery.delivery_date,
+            'invoice_number' => fuel_delivery.invoice_number,
             'per_gallon' => fuel_delivery[delivered_per_gallon_column].to_f,
             'total_gallons' => fuel_delivery[delivered_gallons_column],
             'applied_gallons' => applied_gallons})
