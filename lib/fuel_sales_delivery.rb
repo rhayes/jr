@@ -14,7 +14,11 @@ class FuelSalesDelivery
     @total_results = nil
   end
 
-  def self.report(weeks)
+  def self.report_for_week(week)
+    return FuelSalesDelivery.report([week], true)
+  end
+
+  def self.report(weeks, single_week = false)
     report = FuelSalesDelivery.new(weeks)
     report.build
     book = Spreadsheet::Workbook.new
@@ -102,7 +106,7 @@ class FuelSalesDelivery
         c << week_before_volumes[index] + delivered[index] - sold[index];c}
       week_after_volumes = report.tank_volume_results.get_values("week_after")
       difference = [0,1,2].inject([]) {|d,index|
-        d << calculated[index] - week_after_volumes[index];d}
+        d << week_after_volumes[index] - calculated[index];d}
       if index == 0
         week_before_volumes.each {|value| sheet.row(row).push value}
       elsif index == 1
@@ -135,6 +139,9 @@ class FuelSalesDelivery
         if value.is_a?(Date)
           sheet.row(row).set_format(index, centre_justified_format)
           sheet.row(row).push value.to_s
+        elsif column == 'invoice_number'
+          sheet.row(row).set_format(index, centre_justified_format)
+          sheet.row(row).push value
         else
           sheet.row(row).set_format(index, right_justified_format)
           sheet.row(row).push value
@@ -146,7 +153,8 @@ class FuelSalesDelivery
       end
     end
 
-    file_path = File.expand_path("~/Documents/jr/sales_reports/sales_versus_deliveries_#{weeks.last.date.to_s}.xls")
+    week_of = single_week ? 'week_of_' : ''
+    file_path = File.expand_path("~/Documents/jr/sales_reports/sales_versus_deliveries_#{week_of}#{weeks.last.date.to_s}.xls")
     book.write file_path
     return report
 

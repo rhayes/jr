@@ -177,4 +177,16 @@ class Transaction < ActiveRecord::Base
     return array
   end
 
+  def self.calculate_balances(tax_year = 2018)
+    balance_transaction = Transaction.where("balance_cents != 0").where("tax_year < ?",tax_year).last
+    transactions = Transaction.where("id > ?", balance_transaction.id).order("date, id")
+    balance = balance_transaction.balance
+    transactions.each do |transaction|
+      balance += (transaction.type_of == 'Debit' ? -1.0 * transaction.amount : transaction.amount)
+      transaction.balance = balance
+      transaction.save!
+    end
+    return balance
+  end
+
 end

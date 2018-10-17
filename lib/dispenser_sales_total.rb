@@ -71,9 +71,31 @@ class DispenserSalesTotal < HashManager
     end
 =end
     class DispenserSalesNet < HashManager
-        def initialize(initial_hash)
-            super(initial_hash)
+      def initialize(initial_hash)
+        super(initial_hash)
+      end
+
+      def total_sales
+        total = Money.new(0)
+        ['regular','plus','premium','diesel'].each do |grade|
+          begin
+            total += self.public_send(grade).amount
+          rescue
+          end
         end
+        return total
+      end
+
+      def total_gallons
+        total = 0.0
+        ['regular','plus','premium','diesel'].each do |grade|
+          begin
+            total += self.public_send(grade).gallons
+          rescue
+          end
+        end
+        return total
+      end
     end
 
     private

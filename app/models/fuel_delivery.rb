@@ -48,6 +48,10 @@ class FuelDelivery < ActiveRecord::Base
       return self.supreme_per_gallon
     end
 
+    def premium_gallons
+      return self.supreme_gallons
+    end
+
     def self.confirm_week(tax_year = Date.today.year)
       array = []
       deliveries = FuelDelivery.joins(:week).select("fuel_deliveries.id, fuel_deliveries.delivery_date, weeks.id as week_id")
@@ -75,5 +79,18 @@ class FuelDelivery < ActiveRecord::Base
       self.transaction_id = transaction.nil? ? nil : transaction.id
       self.save!
       return !self.transaction_id.nil?
+    end
+
+    def self.insert_delivery(beginning_id, invoice_number, date)
+      deliveries = FuelDelivery.where("id >= ?", beginning_id).order("id")
+      ActiveRecord::Base.transaction do
+        FuelDelivery.create({:invoice_number => invoice_number, :delivery_date => date})
+        array = deliveries.map{|d| d.as_json}
+        deliveries.delete_all
+        array.each do |delivery|
+          delivery.delete('id')
+          FuelDelivery.create(delivery)
+        end
+      end
     end
 end
