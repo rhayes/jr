@@ -4,14 +4,13 @@ class WeekEstimatedProfit < HashManager
   attr_accessor   :grade_totals
   attr_accessor   :profit
 
-  FUEL_GRADES = ['regular', 'supreme', 'diesel']
+  FUEL_GRADES = ['regular', 'premium', 'diesel']
 
   def initialize(week)
     @week = week
     hash = {}
     FUEL_GRADES.each do |fuel_grade|
-      aliass = fuel_grade == 'supreme' ? 'premium' : fuel_grade
-      grade_info = {'alias' => aliass, 'gallons' => 0.0, 'per_gallon' => 0.0, 'deliveries' => []}
+      grade_info = {'gallons' => 0.0, 'per_gallon' => 0.0, 'deliveries' => []}
       hash[fuel_grade] = grade_info
       grade_hash = {}
       (FUEL_GRADES + ['total']).each do |grade|
@@ -233,7 +232,7 @@ class WeekEstimatedProfit < HashManager
       regular_hash = {'name' => 'regular', 'amount' => net_sales.regular.amount,
         'gallons_sold' => net_sales.regular.gallons.round(2).to_i,
         'estimated_per_gallon' => 0.0, 'net_profit' => 0.0, 'deliveries' => []}
-      premium_hash = {'name' => 'supreme', 'amount' => net_sales.premium.amount,
+      premium_hash = {'name' => 'premium', 'amount' => net_sales.premium.amount,
         'gallons_sold' => net_sales.premium.gallons.round(2).to_i,
         'estimated_per_gallon' => 0.0, 'net_profit' => 0.0, 'deliveries' => []}
       diesel_hash = {'name' => 'diesel', 'amount' => net_sales.diesel.amount,

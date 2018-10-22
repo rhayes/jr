@@ -47,10 +47,10 @@ class Week < ApplicationRecord
 
   def last_rate_per_gallon
     last_regular_delivery = FuelDelivery.where("regular_gallons > 0 and delivery_date < ?",self.date).order("id desc").first
-    last_supreme_delivery = FuelDelivery.where("supreme_gallons > 0 and delivery_date < ?",self.date).order("id desc").first
+    last_premium_delivery = FuelDelivery.where("premium_gallons > 0 and delivery_date < ?",self.date).order("id desc").first
     last_diesel_delivery = FuelDelivery.where("diesel_gallons > 0 and delivery_date < ?",self.date).order("id desc").first
     return last_regular_delivery.regular_per_gallon.to_f,
-      last_supreme_delivery.supreme_per_gallon.to_f, last_diesel_delivery.diesel_per_gallon.to_f
+      last_premium_delivery.premium_per_gallon.to_f, last_diesel_delivery.diesel_per_gallon.to_f
   end
 
   def fuel_sales
@@ -89,7 +89,7 @@ class Week < ApplicationRecord
 
   def delivery_gallons
     gasoline_gallon = fuel_deliveries.map(&:regular_gallons).sum +
-      fuel_deliveries.map(&:supreme_gallons).sum
+      fuel_deliveries.map(&:premium_gallons).sum
     diesel_gallon = fuel_deliveries.map(&:diesel_gallons).sum
     return gasoline_gallon, diesel_gallon
   end
@@ -193,8 +193,8 @@ class Week < ApplicationRecord
     deliveries = FuelDelivery.where("id <= ?",id).order("id desc").limit(40).to_a
     grades = []
     (net_volume.keys - [:total]).each do |key|
-      per_gallon_key = key == :premium ? "supreme_per_gallon" : key.to_s + "_per_gallon"
-      gallons_key = key == :premium ? "supreme_gallons" : key.to_s + "_gallons"
+      per_gallon_key = key == :premium ? "premium_per_gallon" : key.to_s + "_per_gallon"
+      gallons_key = key == :premium ? "premium_gallons" : key.to_s + "_gallons"
       grades << {'keys' => [key, gallons_key, per_gallon_key], 'per_gallon' => 0.0, 'entries' => []}
     end
 
@@ -240,7 +240,7 @@ class Week < ApplicationRecord
       volume_current_week = current_week.tank_volume
       deliveries = current_week.fuel_deliveries
       ['regular', 'premium', 'diesel'].each do |grade|
-        fuel_grade = grade == 'premium' ? 'supreme_gallons' : grade + "_gallons"
+        fuel_grade = grade == 'premium' ? 'premium_gallons' : grade + "_gallons"
         results << {'grade' => grade,
           'tank_volume_previous_week' => volume_previous_week.public_send(grade),
           'tank_volume_current_week' => volume_current_week.public_send(grade),
@@ -258,7 +258,7 @@ class Week < ApplicationRecord
     deliveries = weeks.flat_map{|w| w.fuel_deliveries}
     net_sales = DispenserSalesTotal.net_sales_for_period(weeks.first.previous_week, weeks.last, false)
     regular_gallons = deliveries.map(&:regular_gallons).sum
-    premium_gallons = deliveries.map(&:supreme_gallons).sum
+    premium_gallons = deliveries.map(&:premium_gallons).sum
     diesel_gallons = deliveries.map(&:diesel_gallons).sum
     regular_hash = {'beginning_volume' => beginning_tank_volume.regular,
       'gallons_delivered' => regular_gallons, 'gallons_sold' => net_sales.regular.gallons.to_i,

@@ -43,8 +43,8 @@ ActiveRecord::Schema.define(version: 0) do
     t.integer "week_id", null: false
     t.date "delivery_date", null: false
     t.integer "invoice_number"
-    t.integer "supreme_gallons", default: 0, null: false
-    t.decimal "supreme_per_gallon", precision: 10, scale: 5, default: "0.0", null: false
+    t.integer "premium_gallons", default: 0, null: false
+    t.decimal "premium_per_gallon", precision: 10, scale: 5, default: "0.0", null: false
     t.integer "regular_gallons", default: 0, null: false
     t.decimal "regular_per_gallon", precision: 10, scale: 5, default: "0.0", null: false
     t.integer "diesel_gallons", default: 0, null: false
@@ -62,8 +62,8 @@ ActiveRecord::Schema.define(version: 0) do
     t.integer "week_id", null: false
     t.date "delivery_date", null: false
     t.integer "invoice_number", null: false
-    t.integer "supreme_gallons", default: 0, null: false
-    t.decimal "supreme_per_gallon", precision: 10, scale: 5, default: "0.0", null: false
+    t.integer "premium_gallons", default: 0, null: false
+    t.decimal "premium_per_gallon", precision: 10, scale: 5, default: "0.0", null: false
     t.integer "regular_gallons", default: 0, null: false
     t.decimal "regular_per_gallon", precision: 10, scale: 5, default: "0.0", null: false
     t.integer "diesel_gallons", default: 0, null: false

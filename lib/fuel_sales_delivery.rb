@@ -198,7 +198,7 @@ class FuelSalesDelivery
       self.fuel_deliveries << HashManager.new({'week_date' => delivery.week.date,
         'invoice_number' => delivery.invoice_number,
         'delivery_date' => delivery.delivery_date, 'regular' => delivery.regular_gallons,
-        'premium' => delivery.supreme_gallons, 'diesel' => delivery.diesel_gallons,
+        'premium' => delivery.premium_gallons, 'diesel' => delivery.diesel_gallons,
         'transaction_date' => transaction_date, 'amount' => transaction_amount})
     end
     return self.weekly_results, self.total_results
@@ -206,7 +206,7 @@ class FuelSalesDelivery
 
   def total_delivered_by_grade(fuel_deliveries)
     return HashManager.new('regular' => fuel_deliveries.map(&:regular_gallons).sum,
-           'premium' => fuel_deliveries.map(&:supreme_gallons).sum,
+           'premium' => fuel_deliveries.map(&:premium_gallons).sum,
            'diesel' => fuel_deliveries.map(&:diesel_gallons).sum)
   end
 
