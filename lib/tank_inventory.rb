@@ -18,10 +18,19 @@ class TankInventory < HashManager
       grade_instance.deliveries.each do |delivery|
         grade_instance.per_gallon += (delivery.per_gallon * delivery.applied_gallons / gallons)
       end
-      grade_instance.per_gallon += 0.07
+      grade_instance.per_gallon += 0.01
       grade_instance.amount = gallons * grade_instance.per_gallon
     end
     return instance
+  end
+
+  def self.value_of_inventory(week)
+    fuel_delivery = week.fuel_deliveries.order(:delivery_date).last
+    tank_volume = week.tank_volume
+    parameters = FuelDelivery::GRADES.inject({}) {|hash,grade|
+      hash[grade] = {'gallons' => tank_volume[grade], 'offset' => 0};hash}
+    puts "#{parameters}"
+    return self.create(fuel_delivery, parameters)
   end
 
   def gallons

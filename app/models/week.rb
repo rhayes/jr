@@ -145,6 +145,10 @@ class Week < ApplicationRecord
     return sales
   end
 
+  def dispenser_net(blended = false)
+    return DispenserSalesTotal.net_sales_for_period(self.previous_week, self, blended)
+  end
+
   def fuel_profit
     return WeekEstimatedProfit.week_report(self)
   end
@@ -302,5 +306,9 @@ class Week < ApplicationRecord
       results << HashManager.new(object_hash)
     end
     return results
+  end
+
+  def value_of_inventory
+    return TankInventory.value_of_inventory(self)
   end
 end

@@ -1,9 +1,6 @@
 class EstimatedProfit
 
   attr_accessor   :week
-  attr_accessor   :grade_totals
-  attr_accessor   :profit
-
   attr_accessor   :report
   attr_accessor   :inventory
   attr_accessor   :dispenser_net
@@ -12,7 +9,6 @@ class EstimatedProfit
     instance = self.new
     instance.build(week)
     return instance
-    #return WeekProfit.create(week)
   end
 
   def build(week)
@@ -24,7 +20,6 @@ class EstimatedProfit
     end
     fuel_delivery = week.fuel_deliveries.order(:delivery_date).last
     self.inventory = TankInventory.create(fuel_delivery, parameters)
-    #self.inventory = tank_volume.inventory(true)
     report = {}
     FuelDelivery::GRADES.each do |grade|
       inventory_object = self.inventory.public_send(grade)
@@ -42,7 +37,7 @@ class EstimatedProfit
   end
 
   def self.week_report(week)
-    report = EstimatedProfit.create(week)
+    report = EstimatedProfit.create(week).report
     book = Spreadsheet::Workbook.new
     sheet = book.create_worksheet
     sheet.column(0).width = 15
@@ -64,21 +59,21 @@ class EstimatedProfit
     beg_date = week.date - 6.days
     sheet.row(0).push "Estimated profit for #{beg_date.to_s} - #{week.date.to_s}"
     sheet.row(1).default_format = header_format
-    sheet.row(1).push "Grade", "Gallons", "Retail", "Cost", "Net", 'Per Gallon'
+    sheet.row(1).push "Grade", "Gallons", "Retail", "Cost", "Profit", 'Per Gallon'
 
     row = nil
-    (FUEL_GRADES + ["total"]).each_with_index do |grade,index|
+    (FuelDelivery::GRADES + ["total"]).each_with_index do |grade,index|
       row = index + 2
-      data = report.profit.public_send(grade)
+      data = report.public_send(grade)
       self.set_row_format(sheet.row(row), left_justified_format,
         right_justified_format, right_justified_format, right_justified_format,
         right_justified_format, per_gallon_format)
       sheet.row(row).push grade.titleize
-      sheet.row(row).push data.gallons_sold
+      sheet.row(row).push data.gallons
       sheet.row(row).push data.retail.to_f
       sheet.row(row).push data.cost.to_f
-      sheet.row(row).push data.net.to_f
-      sheet.row(row).push data.net.to_f / data.gallons_sold
+      sheet.row(row).push data.profit.to_f
+      sheet.row(row).push data.profit.to_f / data.gallons_sold
     end
 
     ['regular', 'premium', 'diesel'].each do |grade|
@@ -103,7 +98,7 @@ class EstimatedProfit
       end
     end
 
-    file_path = File.expand_path("~/Documents/jr/fuel_reports/week_of_#{week.date.to_s.gsub("-","_")}.xls")
+    file_path = File.expand_path("~/Documents/jr/fuel_reports_test/week_of_#{week.date.to_s.gsub("-","_")}.xls")
     book.write file_path
     return report
   end
