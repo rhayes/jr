@@ -13,23 +13,17 @@ class EstimatedProfit
 
   def build(week)
     self.dispenser_net = DispenserSalesTotal.net_sales_for_period(week.previous_week, week, false)
-    parameters = {}
-    tank_volume = week.tank_volume
-    FuelDelivery::GRADES.each do |grade|
-      parameters[grade] = {'gallons' => self.dispenser_net.public_send(grade).gallons, 'offset' => tank_volume[grade]}
-    end
-    fuel_delivery = week.fuel_deliveries.order(:delivery_date).last
-    self.inventory = TankInventory.create(fuel_delivery, parameters)
+    self.inventory = TankInventory.create(week)
     report = {}
     FuelDelivery::GRADES.each do |grade|
-      inventory_object = self.inventory.public_send(grade)
-      dispenser_object = self.dispenser_net.public_send(grade)
+      inventory_object = self.inventory.send(grade)
+      dispenser_object = self.dispenser_net.send(grade)
       grade_hash = {:gallons => inventory_object.gallons}
       grade_hash[:retail] = dispenser_object.amount.to_f
       grade_hash[:cost] = inventory_object.amount.to_f
-      grade_hash[:per_gallon_retail] = (grade_hash[:retail] / grade_hash[:gallons]).to_f
+      grade_hash[:per_gallon_retail] = (grade_hash[:retail] / grade_hash[:gallons]).round(4)
       grade_hash[:per_gallon_cost] = inventory_object.per_gallon.to_f
-      grade_hash[:profit] = grade_hash[:retail] - grade_hash[:cost]
+      grade_hash[:profit] = (grade_hash[:retail] - grade_hash[:cost]).round(2)
       grade_hash[:deliveries] = inventory_object.deliveries
       report[grade] = grade_hash
     end

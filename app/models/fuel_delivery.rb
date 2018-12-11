@@ -131,30 +131,32 @@ class FuelDelivery < ActiveRecord::Base
       hash['id'] = delivery['id']
       hash['delivery_date'] = delivery['delivery_date']
       hash['invoice_number'] = delivery['invoice_number']
-      hash['gallons'] = delivery.gallons(grade)
-      hash['per_gallon'] = delivery.per_gallon(grade)
+      hash['gallons'] = delivery.gallons(grade).to_f
+      hash['per_gallon'] = delivery.per_gallon(grade).round(4)
       hash['applied_gallons'] = 0.0
       hash['skip_gallons'] = 0.0
       fuel_deliveries << HashManager.new(hash)
     end
-    offset_gallons = offset
+    offset_gallons = offset.round(2)
     total_gallons = 0.0
+    applied_gallons = 0.0
     fuel_deliveries.each_with_index do |delivery,index|
       if offset_gallons > delivery.gallons
-        delivery.skip_gallons = delivery.gallons
+        delivery.skip_gallons = delivery.gallons.round(2)
         offset_gallons -= delivery.gallons
       else
         delivery.skip_gallons = offset_gallons
         available_gallons = delivery.gallons - delivery.skip_gallons
         offset_gallons = 0.0
         if total_gallons + available_gallons >= gallons
-          delivery.applied_gallons = gallons - total_gallons
-          total_gallons += delivery.applied_gallons
+          applied_gallons = gallons - total_gallons
+          total_gallons += applied_gallons
         else
           total_gallons += available_gallons
-          delivery.applied_gallons = available_gallons
+          applied_gallons = available_gallons.round(2)
         end
       end
+      delivery.applied_gallons = applied_gallons.round(2)
 
       return fuel_deliveries.slice(0..index) if total_gallons >= gallons
     end
