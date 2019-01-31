@@ -31,6 +31,16 @@ class Week < ApplicationRecord
     end
   end
 
+  def self.add_week(tax_year = 2019)
+    last_week = Week.last
+    new_week = Week.new
+    new_week.number = last_week.number < 52 ? last_week.number + 1 : 1
+    new_week.date = last_week.date + 1.week
+    new_week.tax_year = tax_year
+    new_week.save!
+    return new_week
+  end
+
   def sales_to_date
     dispenser_rows = self.dispenser_sales
     regular_sales = dispenser_rows.map{|s| s.regular}.sum

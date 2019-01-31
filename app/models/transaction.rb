@@ -15,6 +15,14 @@ class Transaction < ActiveRecord::Base
   monetize 	:amount_cents, with_model_currency: :amount_currency
   monetize 	:balance_cents, with_model_currency: :balance_currency
 
+  def is_debit?
+    return self.type_of.downcase == 'debit'
+  end
+
+  def is_credit?
+    return self.type_of.downcase == 'credit'
+  end
+
   def self.csv_import(file_name, update = false, init = false)
     #if init
     #  self.delete_all
@@ -177,6 +185,31 @@ class Transaction < ActiveRecord::Base
     return array
   end
 
+  def self.calculate_balances
+    balance_transaction = Transaction.where("balance_cents != 0").order(:id).last
+    transactions = Transaction.where("id > ?", balance_transaction.id).order("date, id")
+    balance = balance_transaction.balance
+    transactions.each do |transaction|
+      balance += (transaction.type_of == 'Debit' ? -1.0 * transaction.amount : transaction.amount)
+      transaction.balance = balance
+      transaction.save!
+    end
+    return balance
+  end
+
+  def self.fill_in_balances
+    balance_transaction = Transaction.where("balance_cents != 0").order(:id).first
+    transactions = Transaction.where("id < ?", balance_transaction.id).order("id desc")
+    balance = balance_transaction.balance
+    transactions.each do |transaction|
+      balance = transaction.is_debit? ? balance - transaction.amount : balance + transaction.amount
+      puts "ID:  #{transaction.id}  --  Balance:  #{balance.to_s}"
+      transaction.balance = balance
+      transaction.save!
+    end
+  end
+
+=begin
   def self.calculate_balances(tax_year = 2018)
     balance_transaction = Transaction.where("balance_cents != 0").where("tax_year < ?",tax_year).last
     transactions = Transaction.where("id > ?", balance_transaction.id).order("date, id")
@@ -188,5 +221,5 @@ class Transaction < ActiveRecord::Base
     end
     return balance
   end
-
+=end
 end
