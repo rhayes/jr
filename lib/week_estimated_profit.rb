@@ -23,7 +23,7 @@ class WeekEstimatedProfit < HashManager
     super(hash)
   end
 
-  def self.year_to_date_report(tax_year = 2018)
+  def self.year_to_date_report(tax_year = 2019)
     ids = Week.where(:tax_year => tax_year).pluck(:id)
     dispenser_sales = DispenserSale.where(:week_id => ids).order(:week_id)
     week_ids = dispenser_sales.first.week_id..dispenser_sales.last.week_id

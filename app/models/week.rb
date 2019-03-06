@@ -62,15 +62,15 @@ class Week < ApplicationRecord
     return last_regular_delivery.regular_per_gallon.to_f,
       last_premium_delivery.premium_per_gallon.to_f, last_diesel_delivery.diesel_per_gallon.to_f
   end
-
+=begin
   def fuel_sales
     Transaction.where(:category => 'fuel_sale', :date => self.date_range)
   end
-
+=end
   def date_range
     return self.date-6.days..self.date
   end
-
+=begin
   def dispenser_sales_by_grade
     sales = self.dispenser_sales
     results = {'regular' => {}, 'plus' => {}, 'premium' => {}, 'diesel' => {}}
@@ -84,11 +84,11 @@ class Week < ApplicationRecord
     results['diesel']['gallons'] = sales.map{|e| e.diesel_volume}.sum
     return results
   end
-
+=end
   def dispenser_report
     self.create_dispenser_report(self)
   end
-
+=begin
   def dispenser_volumes
     gasoline_volume = dispenser_sales.map(&:regular_volume).sum +
       dispenser_sales.map(&:plus_volume).sum +
@@ -158,9 +158,13 @@ class Week < ApplicationRecord
   def dispenser_net(blended = false)
     return DispenserSalesTotal.net_sales_for_period(self.previous_week, self, blended)
   end
-
-  def fuel_profit
+=end
+  def fuel_profit_report
     return WeekEstimatedProfit.week_report(self)
+  end
+
+  def fuel_balance_report
+    FuelBalanceReport.week(self)
   end
 
   def estimated_gross_profit

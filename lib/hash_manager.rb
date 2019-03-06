@@ -43,12 +43,20 @@ class HashManager
     self.instance_variable_get("@#{key_name}")
   end
 
+  def []=(column, value)
+    set_value(column, value)
+  end
+
   def set_value(accessor, value)
     columns = accessor.split('.')
     column = columns.pop
     container = self
     columns.each {|c| container = container.instance_variable_get("@#{c}")}
     container.instance_variable_set("@#{column}", value)
+  end
+
+  def [](accessor)
+    self.get_value(accessor)
   end
 
   def get_value(accessor)

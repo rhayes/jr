@@ -13,10 +13,10 @@ class DispenserSalesTotal < HashManager
 
     def self.net_sales_for_period(first_week, last_week, blended = false)
       net_sales = DispenserSalesNet.new(DispenserSalesTotal.initial_hash(blended))
-      sales_total_first_week = DispenserSalesTotal.new(first_week, blended)
-      sales_total_last_week = DispenserSalesTotal.new(last_week, blended)
+      net_sales.sales_total_first_week = DispenserSalesTotal.new(first_week, blended)
+      net_sales.sales_total_last_week = DispenserSalesTotal.new(last_week, blended)
       DispenserSalesTotal.function_names(blended).each do |function_name|
-        value = self.difference(sales_total_first_week, sales_total_last_week, function_name)
+        value = self.difference(net_sales.sales_total_first_week, net_sales.sales_total_last_week, function_name)
         net_sales.set_value(function_name, value)
       end
       return net_sales
@@ -40,10 +40,15 @@ class DispenserSalesTotal < HashManager
       end
       last_week_value = sales_total_last_week.get_value(function_name)
       first_week_value = sales_total_first_week.get_value(function_name)
+      #last_week_value = sales_total_last_week[function_name]
+      #first_week_value = sales_total_first_week[function_name]
       return (last_week_value + last_week_offset) - (first_week_value + first_week_offset)
     end
 
     class DispenserSalesNet < HashManager
+      attr_accessor   :sales_total_first_week
+      attr_accessor   :sales_total_last_week
+
       def initialize(initial_hash)
         super(initial_hash)
       end

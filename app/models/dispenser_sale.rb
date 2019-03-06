@@ -1,5 +1,7 @@
 class DispenserSale < ActiveRecord::Base
 
+  GRADES = ['regular', 'plus', 'premium', 'diesel']
+
   belongs_to    :week
 
   monetize 	:regular_cents, with_model_currency: :regular_currency
