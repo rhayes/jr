@@ -23,11 +23,17 @@ class WeekEstimatedProfit < HashManager
     super(hash)
   end
 
-  def self.year_to_date_report(tax_year = 2019)
-    ids = Week.where(:tax_year => tax_year).pluck(:id)
-    dispenser_sales = DispenserSale.where(:week_id => ids).order(:week_id)
-    week_ids = dispenser_sales.first.week_id..dispenser_sales.last.week_id
-    weeks = Week.where(:id => week_ids)
+  def self.year_to_date_report(tax_year = 2019, week_ids = nil)
+    weeks = nil
+    if week_ids.nil?
+      ids = Week.where(:tax_year => tax_year).pluck(:id)
+      week_ids = DispenserSale.where(:week_id => ids).order(:week_id).pluck(:week_id).uniq
+      #dispenser_sales = DispenserSale.where(:week_id => ids).order(:week_id)
+      #week_ids = dispenser_sales.first.week_id..dispenser_sales.last.week_id
+      weeks = Week.where(:id => week_ids)
+    else
+      weeks = Week.where(:id => week_ids)
+    end
     reports = []
     weeks.each {|week| reports << WeekEstimatedProfit.create(week)}
 
@@ -196,6 +202,7 @@ class WeekEstimatedProfit < HashManager
   end
 
   def self.create(week)
+    puts "Week ID:  #{week.id}"
     instance = self.new(week)
     instance.grade_totals = instance.build
     return instance

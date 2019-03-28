@@ -197,7 +197,7 @@ class FuelBalanceReport < HashManager
     row += 1
     sheet.merge_cells(row, 0, row, 1)
     sheet.row(row).set_format(0,left_justified_format)
-    sheet.row(row).push "Volume - #{first_week.date.to_s}", ""
+    sheet.row(row).push "Volume - #{first_week.previous_week.date.to_s}", ""
     @fuel_grades.keys.each_with_index do |grade, index|
       sheet.row(row).set_format(index+2,currency_format)
       sheet.row(row).push self.tank.begin.send(grade).to_f

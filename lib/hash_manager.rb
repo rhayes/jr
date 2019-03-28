@@ -10,37 +10,19 @@ class HashManager
     end
 
     @_columns = []
-    hash.each do |key,value|
-      if key.is_a?(String)
-        key_name = key
-      elsif key.is_a?(Fixnum) or key.is_a?(Symbol)
-        key_name = key.to_s
-      else
-        raise "hash keys must be a String" unless key.is_a?(String)
-      end
-      @_columns << key_name
-      if value.is_a?(Array)
-        field_value = ArrayClass.new(value).collection
-      elsif value.is_a?(Hash)
-        field_value = HashManager.new(value)
-      elsif value.is_a?(HashManager)
-        field_value = value
-      #elsif value.is_a?(String) and value.include?("__DateTime__:")
-      #  value.slice!("__DateTime__:")
-      #  field_value = DateTime.parse(value)
-      #elsif value.is_a?(String) and value.include?("__Date__:")
-      #  value.slice!("__Date__:")
-      #  field_value = Date.parse(value)
-      else
-        field_value = value
-      end
-      singleton_class.class_eval { attr_accessor key_name }
-      self.instance_variable_set("@#{key_name}", field_value)
-    end
+    initialize_load_hash(hash)
   end
 
   def get_key(key_name)
     self.instance_variable_get("@#{key_name}")
+  end
+
+  def column_exists?(column_name)
+    return self._columns.include?(column_name)
+  end
+
+  def value(column_name)
+    self.instance_variable_get("@#{column_name}")
   end
 
   def []=(column, value)
@@ -69,10 +51,10 @@ class HashManager
   def matches?(hash)
     hash.each do |key,value|
       key_name = key.is_a?(Symbol) ? key.to_s : key
-      if value.is_a?(Array)
-        return false unless value.include?(self.get_key(key_name))
+      if value.is_a?(Array) || value.is_a?(Range)
+        return false unless value.include?(self[key_name])
       else
-        return false unless self.get_key(key_name) == value
+        return false unless self[key_name] == value
       end
     end
     return true
@@ -89,15 +71,15 @@ class HashManager
         value.each do |data|
           hash[column] << (data.kind_of?(HashManager) ? data.to_hash : data)
         end
-      #elsif value.is_a?(DateTime)
-      #  hash[column] = "__DateTime__:" + value.to_s
-      #elsif value.is_a?(Date)
-      #  hash[column] = "__Date__:" + value.to_s
       else
         hash[column] = value
       end
     end
     return hash
+  end
+
+  def self.from_json(json)
+    return HashManager.new(JSON.parse(json))
   end
 
   def self.collection_to_array(collection)
@@ -107,6 +89,55 @@ class HashManager
       array << object.to_hash
     end
     return array
+  end
+
+  def merge(hash)
+    initialize_load_hash(hash)
+  end
+
+  def ==(instance)
+    self_hash = self.to_hash
+    instance_hash = instance.to_hash
+    return false if self_hash.keys.count != instance_hash.keys.count
+    return false unless (self_hash.keys - instance_hash.keys).empty?
+    self_hash.keys.each do |column|
+      return false unless self.send(column) == instance.send(column)
+    end
+    return true
+  end
+
+  def !=(instance)
+    return !(self == instance)
+  end
+
+  def dup
+    self.class.new(self.to_hash)
+  end
+
+  private
+
+  def initialize_load_hash(hash)
+    hash.each do |key,value|
+      if key.is_a?(String)
+        key_name = key
+      elsif key.is_a?(Integer) or key.is_a?(Symbol)
+        key_name = key.to_s
+      else
+        raise "hash keys must be a String" unless key.is_a?(String)
+      end
+      @_columns << key_name
+      if value.is_a?(Array)
+        field_value = ArrayClass.new(value).collection
+      elsif value.is_a?(Hash)
+        field_value = HashManager.new(value)
+      elsif value.is_a?(HashManager)
+        field_value = value
+      else
+        field_value = value
+      end
+      singleton_class.class_eval { attr_accessor key_name }
+      self.instance_variable_set("@#{key_name}", field_value)
+    end
   end
 
   class ArrayClass

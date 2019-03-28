@@ -30,18 +30,28 @@ class DispenserSalesTotal < HashManager
 
       grade_type = translation[function_name]
       first_week_offset = last_week_offset = 0.0
+      if grade_type.include?("_cents")
+        first_week_offset = Money.new(0)
+        last_week_offset = Money.new(0)
+      end
       first_week = sales_total_first_week.week
       last_week = sales_total_last_week.week
       [1,2,3,4,5,6].each do |number|
-        first_week_offset += DispenserOffset.dispenser(number).grade_type(grade_type).
-          where("start_date <= ?", first_week.date).order(:start_date).last.offset.to_f
-        last_week_offset += DispenserOffset.dispenser(number).grade_type(grade_type).
-          where("start_date <= ?", last_week.date).order(:start_date).last.offset.to_f
+        first_week_offset += DispenserOffset.get_offset(number, grade_type, first_week.date)
+        last_week_offset += DispenserOffset.get_offset(number, grade_type, last_week.date)
+        #first_week_offset += DispenserOffset.dispenser(number).grade_type(grade_type).
+        #  where("start_date <= ?", first_week.date).order(:start_date).last.offset.to_f
+        #last_week_offset += DispenserOffset.dispenser(number).grade_type(grade_type).
+        #  where("start_date <= ?", last_week.date).order(:start_date).last.offset.to_f
       end
       last_week_value = sales_total_last_week.get_value(function_name)
       first_week_value = sales_total_first_week.get_value(function_name)
       #last_week_value = sales_total_last_week[function_name]
       #first_week_value = sales_total_first_week[function_name]
+      puts "grade_type:  #{grade_type}"
+      puts "last_week_value class:  #{last_week_value.class}  --  last_week_offset class:  #{last_week_offset.class}"
+      puts "First week:  #{first_week_value}  --  Offset:  #{first_week_offset}  --  Total:  #{first_week_value + first_week_offset}"
+      puts "Last week:  #{last_week_value}  --  Offset:  #{last_week_offset}  --  Total:  #{last_week_value + last_week_offset}"
       return (last_week_value + last_week_offset) - (first_week_value + first_week_offset)
     end
 

@@ -16,8 +16,15 @@ class DispenserOffset < ActiveRecord::Base
     end
   end
 
+  #def self.get_offset(number, grade_type, start_date)
+  #  return self.dispenser(number).grade_type(grade_type).
+  #    where("start_date <= ?", start_date).order(:start_date).last.offset
+  #end
+
   def self.get_offset(number, grade_type, start_date)
-    return self.dispenser(number).grade_type(grade_type).
+    offset = self.dispenser(number).grade_type(grade_type).
       where("start_date <= ?", start_date).order(:start_date).last.offset
+    return grade_type.include?("_cents") ? Money.new(100 * offset) : offset.to_f
   end
+
 end

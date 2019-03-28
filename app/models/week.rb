@@ -159,9 +159,14 @@ class Week < ApplicationRecord
     return DispenserSalesTotal.net_sales_for_period(self.previous_week, self, blended)
   end
 =end
-  def fuel_profit_report
-    return WeekEstimatedProfit.week_report(self)
-  end
+def fuel_profit_report
+  return WeekEstimatedProfit.week_report(self)
+end
+
+def fuel_profit_year_to_date_report
+  weeks = Week.tax_year(self.tax_year).where("id <= ?",self.id).order(:id)
+  return WeekEstimatedProfit.year_to_date_report(self.tax_year, weeks)
+end
 
   def fuel_balance_report
     FuelBalanceReport.week(self)
@@ -294,7 +299,9 @@ class Week < ApplicationRecord
   end
 
   def dispenser_sales_with_offset
-    names = DispenserSale.columns.map{|c| c.name}.select{|c| c.include?("_cents") || c.include?("_volume")}.sort
+    names = DispenserSale.columns.map{|c| c.name}.
+      select{|c| c.include?("_cents") || c.include?("_volume")}.
+      delete_if{|c| c.include?("_adjustment")}.sort
     translation = names.inject({}) {|hash,name| hash[name] = name.gsub("_volume","_gallons");hash}
     column_names = names.inject([]) {|array,name| array << name.gsub("_volume","_gallons");array}
     sales = self.dispenser_sales.order(:number)
@@ -302,10 +309,16 @@ class Week < ApplicationRecord
     sales.each do |sale|
       object_hash = {}
       sales_hash = sale.as_json.each do |key,value|
-        object_hash[key] = value
+        object_hash[key] = value.kind_of?(BigDecimal) ? value.to_f : value
         unless (column = translation[key]).nil?
           offset = DispenserOffset.get_offset(sale.number, column, self.date)
-          object_hash[key] += offset
+          puts "Offset:  #{offset}"
+          if offset.kind_of?(Money)
+            puts "\t#{object_hash}\n\n"
+            object_hash[key] += 100 * offset.to_i
+          else
+            object_hash[key] += offset
+          end
         end
         next
         if translation[key].nil?
