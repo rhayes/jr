@@ -159,17 +159,21 @@ class Week < ApplicationRecord
     return DispenserSalesTotal.net_sales_for_period(self.previous_week, self, blended)
   end
 =end
-def fuel_profit_report
-  return WeekEstimatedProfit.week_report(self)
-end
+  def fuel_profit_report
+    return WeekEstimatedProfit.week_report(self)
+  end
 
-def fuel_profit_year_to_date_report
-  weeks = Week.tax_year(self.tax_year).where("id <= ?",self.id).order(:id)
-  return WeekEstimatedProfit.year_to_date_report(self.tax_year, weeks)
-end
+  def fuel_profit_year_to_date_report
+    weeks = Week.tax_year(self.tax_year).where("id <= ?",self.id).order(:id)
+    return WeekEstimatedProfit.year_to_date_report(self.tax_year, weeks)
+  end
 
   def fuel_balance_report
     FuelBalanceReport.week(self)
+  end
+
+  def fuel_balance_year_to_date_report
+    FuelBalanceReport.year(self.tax_year)
   end
 
   def estimated_gross_profit
