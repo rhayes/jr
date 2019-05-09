@@ -1,42 +1,105 @@
 class FuelProfit
-  def self.weekly_report(week)
+
+  attr_accessor   :net_sales
+  attr_accessor   :fuel_detail
+  attr_accessor   :grade_profit
+
+  def self.create_report_for_week(week)
     report = FuelProfit.new
-    report.create_weekly_report(week)
+    report.build_report_for_week(week)
     report
   end
 
-  def create_weekly_report(week)
-    #previous_week = week.previous_week
-    fuel_deliveries = week.fuel_deliveries
-    ending_tank_volume = week.tank_volume
+  def build_report_for_week(week)
+    self.net_sales = DispenserSale.net_for_week(week)
+    self.fuel_detail = FuelDeliveryDetail.for_week_sales(week)
+    self.grade_profit = GrossProfit.create(net_sales, fuel_detail)
   end
 
-  def create_report(first_week, last_week)
+  def self.create_report_for_year(year = 2019)
+    weeks = Week.tax_year(year).order(:id)
+    self.create_report_for_weeks(weeks.first.id, weeks.last.id)
   end
 
-  def self.gather_fuel_deliveries(week, grade, total_gallons, offset=0)
-    gallons_column = grade + "_gallons"
-    fuel_deliveries = FuelDelivery.where("delivery_date <= ?",week.date).
-      where("#{gallons_column} > 0").order("delivery_date desc").limit(20)
-    deliveries = []
-    total_offset_remaining = offset.to_f
-    total_gallons_remaining = total_gallons.to_f
-    fuel_deliveries.each do |fuel_delivery|
-      gallons = fuel_delivery[gallons_column].to_f
-      offset_applied = total_offset_remaining <= gallons ? total_offset_remaining : gallons
-      total_offset_remaining -= offset_applied
-      gallons_available = gallons - offset_applied
-      gallons_applied = gallons_available > total_gallons_remaining ?
-        total_gallons_remaining : gallons_available
-      total_gallons_remaining -= gallons_applied
-      per_gallon = fuel_delivery[grade + "_per_gallon"].to_f
-      deliveries << HashManager.new({'id' => fuel_delivery.id,
-        'date' => fuel_delivery.delivery_date, 'invoice_number' => fuel_delivery.invoice_number,
-        'per_gallon' => per_gallon, 'offset_applied' => offset_applied,
-        'gallons_applied' => gallons_applied, 'gallons' => gallons})
-      break if total_gallons_remaining <= 0.9
+  def self.create_report_for_weeks(first_week_id, last_week_id)
+    reports = []
+    raise "beginning week is after ending week" if first_week_id > last_week_id
+    for week_id in first_week_id .. last_week_id
+      report = FuelProfit.new
+      week = Week.find(week_id)
+      report.net_sales = DispenserSale.net_for_week(week)
+      report.fuel_detail = FuelDeliveryDetail.for_week_sales(week)
+      report.grade_profit = GrossProfit.create(report.net_sales, report.fuel_detail)
+      reports << report
     end
-    average_per_gallon = (deliveries.inject(0.0) {|total,d| total += d.per_gallon * d.gallons_applied; total} / total_gallons).to_f.round(4)
-    return average_per_gallon, deliveries
+    reports
   end
+
+  def build_report_for_weeks(first_week_id, last_week_id)
+    collection = []
+    raise "beginning week is after ending week" if first_week_id > last_week_id
+    for week_id in first_week_id .. last_week_id
+      week = Week.find(week_id)
+      self.net_sales = DispenserSale.net_for_week(week)
+      self.fuel_detail = FuelDeliveryDetail.for_week_sales(week)
+      self.grade_profit = GrossProfit.create(net_sales, fuel_detail)
+    end
+  end
+
+  class GrossProfit < HashManager
+    def initialize
+      super({:entries => []})
+    end
+
+    def self.create(net_sales, fuel_detail)
+      grade_profit = self.new
+      total_gallons = 0
+      total_retail = total_cost = 0.0
+      FuelDelivery::GRADES.each do |grade|
+        total_gallons += (gallons = fuel_detail[grade].gallons) ##################
+        total_retail += (retail = net_sales.dollars[grade])
+        cost_per_gallon = fuel_detail[grade].average_per_gallon
+        total_cost += fuel_detail[grade].average_per_gallon * fuel_detail[grade].gallons  #########
+        grade_profit.entries << GradeProfitEntry.create(grade, gallons, retail, cost_per_gallon)
+      end
+      overall_cost_per_gallon = total_cost / total_gallons
+      grade_profit.entries << GradeProfitEntry.create('total', total_gallons, total_retail, overall_cost_per_gallon)
+      grade_profit
+    end
+
+    def add_entry(grade, gallons, retail, cost_per_gallon)
+      entry = GradeProfitEntry.create(grade, gallons, retail, cost_per_gallon)
+    end
+  end
+
+  class GradeProfitEntry < HashManager
+    def initialize(description)
+      super({:description => description, :gallons => nil, :retail => nil, :cost_per_gallon => nil})
+    end
+
+    def self.create(description, gallons, retail, cost_per_gallon)
+      profit = GradeProfitEntry.new(description)
+      profit.gallons = gallons
+      profit.retail = retail
+      profit.cost_per_gallon = cost_per_gallon
+      profit
+    end
+
+    def cost
+      (self.cost_per_gallon + 0.07) * self.gallons
+    end
+
+    def net
+      self.retail - self.cost
+    end
+
+    def retail_per_gallon
+      self.gallons / self.gallons
+    end
+
+    def net_per_gallon
+      self.net / self.gallons
+    end
+  end
+
 end
