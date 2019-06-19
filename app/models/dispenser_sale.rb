@@ -165,6 +165,14 @@ class DispenserSale < ActiveRecord::Base
       end
       array
     end
+
+    def total_gallons
+      gallons.regular + gallons.plus.to_f + gallons.premium + gallons.diesel
+    end
+
+    def total_dollars
+      dollars.regular + dollars.plus.to_f + dollars.premium + dollars.diesel
+    end
   end
 
   class DispenserReport < HashManager

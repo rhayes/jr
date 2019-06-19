@@ -1,8 +1,10 @@
 class FuelDeliveryDetail < HashManager
 
+  attr_accessor   :beginning_date
   attr_accessor   :ending_date
 
-  def initialize(ending_date)
+  def initialize(beginning_date, ending_date)
+    @beginning_date = beginning_date
     @ending_date = ending_date
     super({})
   end
@@ -15,7 +17,18 @@ class FuelDeliveryDetail < HashManager
       gallons = net_sales.gallons[grade]
       array << HashManager.new({:grade => grade, :gallons => gallons, :offset => offset})
     end
-    self.create(week.date, array)
+    self.create(week.previous_week.date - 2.months, week.date, array)
+  end
+
+  def self.for_range_of_weeks_sales(beginning_week, ending_week)
+    net_sales = DispenserSale.net_for_range_of_weeks(beginning_week, ending_week)
+    array = []
+    FuelDelivery::GRADES.each do |grade|
+      offset = ending_week.tank_volume[grade]
+      gallons = net_sales.gallons[grade]
+      array << HashManager.new({:grade => grade, :gallons => gallons, :offset => offset})
+    end
+    self.create(beginning_week.date - 2.months, ending_week.date, array)
   end
 
   def self.for_week_inventory(week)
@@ -27,15 +40,16 @@ class FuelDeliveryDetail < HashManager
     self.create(week.date, array)
   end
 
-  def self.create(ending_date, array)
-    info = self.new(ending_date)
+  def self.create(beginning_date, ending_date, array)
+    info = self.new(beginning_date, ending_date)
     info.build(array)
     info
   end
 
   def build(array)
     array.each do |grade_info|
-      delivery_info = FuelDelivered.create(grade_info.grade, ending_date, grade_info.gallons, grade_info.offset)
+      delivery_info = FuelDelivered.create(grade_info.grade, beginning_date,
+        ending_date, grade_info.gallons, grade_info.offset)
       self.merge({grade_info.grade => delivery_info})
     end
   end
@@ -45,18 +59,21 @@ class FuelDeliveryDetail < HashManager
   end
 
   class FuelDelivered < HashManager
-    def initialize(grade, ending_date, gallons, offset)
-      super({:grade => grade, :ending_date => ending_date,
+    def initialize(grade, beginning_date, ending_date, gallons, offset)
+      super({:grade => grade, :beginning_date => beginning_date, :ending_date => ending_date,
         :gallons => gallons, :offset => offset, :deliveries => []})
     end
-    def self.create(grade, ending_date, gallons, offset)
-      results = FuelDelivered.new(grade, ending_date, gallons, offset)
+    def self.create(grade, beginning_date, ending_date, gallons, offset)
+      results = FuelDelivered.new(grade, beginning_date, ending_date, gallons, offset)
       results.build
     end
     def build
       gallons_column = grade + "_gallons"
-      fuel_deliveries = FuelDelivery.where("delivery_date <= ?",ending_date).
-        where("#{gallons_column} > 0").order("delivery_date desc").limit(20)
+      date_range = beginning_date..ending_date
+      #fuel_deliveries = FuelDelivery.where("delivery_date <= ?",ending_date).
+      #  where("#{gallons_column} > 0").order("delivery_date desc").limit(20)
+      fuel_deliveries = FuelDelivery.where(:delivery_date => date_range).
+        where("#{gallons_column} > 0").order("delivery_date desc")
       deliveries = []
       total_offset_remaining = offset.to_f
       total_gallons_remaining = gallons.to_f

@@ -16,9 +16,11 @@ class FuelProfit
     self.grade_profit = GrossProfit.create(net_sales, fuel_detail)
   end
 
-  def self.create_report_for_year(year = 2019)
-    weeks = Week.tax_year(year).order(:id)
-    self.create_report_for_weeks(weeks.first.id, weeks.last.id)
+  def self.create_grade_details_year_to_date_report(tax_year = 2019)
+    report = FuelProfit.new
+    #net_sales = DispenserSale.net_for_range_of_weeks(week, week)
+    report.build_grade_details_year_to_date_report(tax_year)
+    report
   end
 
   def self.create_report_for_weeks(first_week_id, last_week_id)
@@ -33,6 +35,13 @@ class FuelProfit
       reports << report
     end
     reports
+  end
+
+  def build_grade_details_year_to_date_report(tax_year = 2019)
+    weeks = Week.tax_year(tax_year).order(:id)
+    self.net_sales = DispenserSale.net_for_range_of_weeks(weeks.first, weeks.last)
+    self.fuel_detail = FuelDeliveryDetail.for_range_of_weeks_sales(weeks.first, weeks.last)
+    self.grade_profit = GrossProfit.create(net_sales, fuel_detail)
   end
 
   def build_report_for_weeks(first_week_id, last_week_id)
@@ -58,17 +67,21 @@ class FuelProfit
       FuelDelivery::GRADES.each do |grade|
         total_gallons += (gallons = fuel_detail[grade].gallons) ##################
         total_retail += (retail = net_sales.dollars[grade])
-        cost_per_gallon = fuel_detail[grade].average_per_gallon
+        cost_per_gallon = fuel_detail[grade].average_per_gallon + 0.07
         total_cost += fuel_detail[grade].average_per_gallon * fuel_detail[grade].gallons  #########
         grade_profit.entries << GradeProfitEntry.create(grade, gallons, retail, cost_per_gallon)
       end
-      overall_cost_per_gallon = total_cost / total_gallons
+      overall_cost_per_gallon = total_cost / total_gallons + 0.07
       grade_profit.entries << GradeProfitEntry.create('total', total_gallons, total_retail, overall_cost_per_gallon)
       grade_profit
     end
 
     def add_entry(grade, gallons, retail, cost_per_gallon)
       entry = GradeProfitEntry.create(grade, gallons, retail, cost_per_gallon)
+    end
+
+    def get_entry(name)
+      entries.select{|entry| entry.description == name}.first
     end
   end
 
@@ -86,7 +99,7 @@ class FuelProfit
     end
 
     def cost
-      (self.cost_per_gallon + 0.07) * self.gallons
+      self.cost_per_gallon * self.gallons
     end
 
     def net
@@ -94,7 +107,7 @@ class FuelProfit
     end
 
     def retail_per_gallon
-      self.gallons / self.gallons
+      self.retail / self.gallons
     end
 
     def net_per_gallon
