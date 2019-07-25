@@ -342,4 +342,27 @@ class Week < ApplicationRecord
   def value_of_inventory
     return TankInventory.value_of_inventory(self)
   end
+
+  # => Migration
+
+  def self.migrate_commissions(tax_year = 2019)
+    weeks = Week.tax_year(tax_year).order("number desc")
+    commissions = Transaction.fuel_commission.order(:date).to_a
+    array = []
+    weeks.each do |week|
+      commission = commissions.select{|c| c.date > week.date}.first
+      if commission.nil?
+        transaction_id = transaction_date = amount = nil
+      else
+        transaction_id = commission.id
+        transaction_date = commission.date.to_s
+        amount = commission.amount.to_f.round(2)
+        commissions.pop
+        puts "commissions:  #{commissions.map{|c| {:id => c.id, :amount => c.amount.to_f}}}"
+      end
+      array << {:week_id => week.id, :week_date => week.date, :transction_id => transaction_id,
+        :transaction_date => transaction_date, :amount => amount}
+    end
+    array
+  end
 end

@@ -1,8 +1,9 @@
 class FuelDelivery < ActiveRecord::Base
 
   belongs_to    :week
-  belongs_to    :fuel_transaction, :class_name => 'Transaction',
-    :foreign_key => 'transaction_id', :optional => true
+  #belongs_to    :fuel_transaction, :class_name => 'Transaction',
+  #  :foreign_key => 'transaction_id', :optional => true
+  has_many      :transactions
 
   monetize 	:monthly_tank_charge_cents, with_model_currency: :monthly_tank_charge_currency
 
@@ -79,13 +80,34 @@ class FuelDelivery < ActiveRecord::Base
     return array
   end
 
+  def match_two_transactions(first_transaction)
+    unless first_transaction.fuel_delivery_id.nil?
+      raise "first transaction alredy associated with a fuel delivery"
+    end
+    dates = self.delivery_date..self.delivery_date+10.days
+    balance_cents = self.total.cents - first_transaction.amount.cents
+    second_transaction = Transaction.fuel_cost.
+      where(:amount_cents => balance_cents, :date => dates).first
+    return false if second_transaction.nil?
+    ActiveRecord::Base.transaction do
+      [first_transaction, second_transaction].each do |transaction|
+        #self.update_column(:transaction_id, transaction.id)
+        transaction.update_attributes(:week_id => self.week_id, :fuel_delivery_id => self.id)
+      end
+    end
+    return true
+  end
+
   def match_transaction
     dates = self.delivery_date..self.delivery_date+10.days
     transaction = Transaction.fuel_cost.
       where(:amount_cents => self.total.cents, :date => dates).first
-    self.transaction_id = transaction.nil? ? nil : transaction.id
-    self.save!
-    return !self.transaction_id.nil?
+    return false if transaction.nil?
+    ActiveRecord::Base.transaction do
+      self.update_column(:transaction_id, transaction.id)
+      transaction.update_attributes(:week_id => self.week_id, :fuel_delivery_id => self.id)
+    end
+    return true
   end
 
   def self.insert_delivery(beginning_id, invoice_number, date)

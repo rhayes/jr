@@ -1,6 +1,7 @@
 class Transaction < ActiveRecord::Base
 
-  has_one   :fuel_delivery
+  #has_one   :fuel_delivery
+  belongs_to  :fuel_delivery
 
   scope   :credit, -> {where(:type_of => 'credit')}
   scope   :debit, -> {where(:type_of => 'debit')}
