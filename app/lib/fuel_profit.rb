@@ -55,6 +55,34 @@ class FuelProfit
     end
   end
 
+  def self.net_fuel_profit_for_week(week)
+    self.net_fuel_profit([week])
+  end
+
+  def self.net_fuel_profit_for_year(tax_year = 2019)
+    weeks = Week.tax_year(tax_year).order(:id)
+    self.net_fuel_profit(weeks)
+  end
+
+  def self.net_fuel_profit(weeks)
+    #weeks = Week.tax_year(tax_year).order(:id)
+    week_ids = weeks.map(&:id)
+    commissions = Transaction.fuel_commission.where(:week_id => week_ids)
+    commission = commissions.map{|c| c.amount.to_f.round(2)}.sum
+    net_sales = DispenserSale.net_for_range_of_weeks(weeks.first, weeks.last)
+    deposits = Transaction.fuel_sale.where(:week_id => week_ids)
+    fuel_sales = (deposits.map{|d| d.amount.to_f}.sum - 900.0 * deposits.select{|d| d.includes_lease}.count).round(2)
+    fuel_deliveries = FuelDelivery.where(:week => week_ids)
+    fuel_cost = fuel_deliveries.map{|d| d.total.to_f}.sum.round(2)
+    fuel_costs = Transaction.fuel_cost.where(:week_id => week_ids)
+    fuel_cost = fuel_costs.map{|c| c.amount.to_f.round(2)}.sum
+    beginning_inventory = weeks.first.previous_week.value_of_inventory.amount.round(2)
+    ending_inventory = weeks.last.value_of_inventory.amount.round(2)
+    {:net => fuel_sales - commission - fuel_cost + ending_inventory - beginning_inventory,
+      :fuel_sales => fuel_sales, :commission => commission, :fuel_cost => fuel_cost,
+      :ending_inventory => ending_inventory, :beginning_inventory => beginning_inventory}
+  end
+
   class GrossProfit < HashManager
     def initialize
       super({:entries => []})

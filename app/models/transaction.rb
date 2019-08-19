@@ -1,7 +1,8 @@
 class Transaction < ActiveRecord::Base
 
   #has_one   :fuel_delivery
-  belongs_to  :fuel_delivery
+  belongs_to  :fuel_delivery, :optional => true
+  belongs_to  :week, :optional => true
 
   scope   :credit, -> {where(:type_of => 'credit')}
   scope   :debit, -> {where(:type_of => 'debit')}
@@ -11,6 +12,7 @@ class Transaction < ActiveRecord::Base
   scope   :fuel_commission, -> {where(:category => 'fuel_commission')}
   scope   :rent, -> {where(:category => 'rent')}
   scope		:tax_year, lambda{|year| where(:tax_year => year)}
+  scope		:week, lambda{|id| where(:week_id => id)}
   scope		:category, lambda{|category| where(:category => category)}
 
   monetize 	:amount_cents, with_model_currency: :amount_currency

@@ -4,21 +4,26 @@ class FuelProfitSpreadsheet < SpreadsheetWorkbook
   end
 
   def self.create_report_for_week(week)
-    spreadshhet = FuelProfitSpreadsheet.new
-    spreadshhet.build_report_for_week(week)
+    spreadsheet = FuelProfitSpreadsheet.new
+    spreadsheet.build_report_for_week(week)
+  end
+
+  def self.test(tax_year = 2019)
+    spreadsheet = FuelProfitSpreadsheet.new
+    spreadsheet.build_grade_details_year_to_date_report(tax_year)
   end
 
   def self.create_report_for_year(tax_year = 2019)
-    spreadshhet = FuelProfitSpreadsheet.new
+    spreadsheet = FuelProfitSpreadsheet.new
     last_week = Week.tax_year(tax_year).order(:id).last
     title = "#{tax_year} Detailed Estimated Fuel Profit"
     file_path = File.expand_path("~/Documents/jr_reports/#{tax_year}/fuel_profit_reports/defp_#{tax_year}_as_of_#{self.formatted_date(last_week.date)}.xls")
-    spreadshhet.build_report_for_year(tax_year, title, file_path)
+    spreadsheet.build_report_for_year(tax_year, title, file_path)
   end
 
   def self.create_report_for_weeks(week)
-    spreadshhet = FuelProfitSpreadsheet.new
-    spreadshhet.build_report_for_week(week)
+    spreadsheet = FuelProfitSpreadsheet.new
+    spreadsheet.build_report_for_week(week)
   end
 
   def self.create_grade_details_year_to_date_report(tax_year = 2019)
@@ -140,6 +145,38 @@ class FuelProfitSpreadsheet < SpreadsheetWorkbook
   def build_report_for_year(tax_year, title, file_path)
     weeks = Week.tax_year(tax_year).order(:id)
     reports = weeks.inject([]) {|array,week| FuelProfit.create_report_for_week(week);array}
+    sheet = create_worksheet
+
+    set_column_widths(sheet, [15, 15, 15, 15, 15, 12, 12, 12, 12])
+    merge_cells(sheet, [[0,0,0,8]])
+    merge_cells(sheet, [[1,6,1,8]])
+
+    push_cell(sheet.row(0), 0, "Fuel profit for #{tax_year}", formath_center(16))
+    push_row(sheet.row(1), ["Week", "Gallons", "Retail", "Cost", "Net", "Overall", "Regular", "Premium", "Diesel"], formath_center(14))
+
+    data = [{:type => 'gallons', :title => 'Gallons', :format => {}},
+      {:type => 'retail', :title => 'Retail', :format => {:number_format => '$#,###,##0.00'}},
+      {:type => 'cost', :title => 'Cost', :format => {:number_format => '$#,###,##0.00'}},
+      {:type => 'net', :title => 'Net', :format => {:number_format => '$#,###,##0.00'}},
+      {:type => 'retail_per_gallon', :title => 'Retail Per Gallon', :format => {:number_format => '#0.0000'}},
+      {:type => 'cost_per_gallon', :title => 'Cost Per Gallon', :format => {:number_format => '#0.0000'}},
+      {:type => 'net_per_gallon', :title => 'Net Per Gallon', :format => {:number_format => '#0.0000'}}]
+
+		#sheet = create_worksheet
+
+    set_column_widths(sheet, [15, 15, 18, 18, 15, 18])
+    merge_cells(sheet, [[0, 0, 0, 5]])
+
+		#title_format = Spreadsheet::Format.new :horizontal_align => :centre, :size => 16
+		#header_format = Spreadsheet::Format.new :horizontal_align => :centre, :size => 14
+    header_format = formath_center(14)
+    text_format = formath_left(14)
+    currency_format = formath_right(14, {:number_format => '##0.0000'})
+    per_gallon_format = Spreadsheet::Format.new :horizontal_align => :right, :size => 14, :number_format => '##0.0000'
+    center_format = formath_center(14)
+    #centre_justified_format = Spreadsheet::Format.new :horizontal_align => :centre, :size => 14
+
+    #sheet.row(0).default_format = title_format
   end
 
   def build_report_for_weeks

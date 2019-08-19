@@ -81,7 +81,7 @@ class FuelDelivery < ActiveRecord::Base
   end
 
   def match_two_transactions(first_transaction)
-    unless first_transaction.fuel_delivery_id.nil?
+    unless first_transaction.fuel_delivery_id.nil? || first_transaction.fuel_delivery_id == self.id
       raise "first transaction alredy associated with a fuel delivery"
     end
     dates = self.delivery_date..self.delivery_date+10.days
@@ -91,7 +91,7 @@ class FuelDelivery < ActiveRecord::Base
     return false if second_transaction.nil?
     ActiveRecord::Base.transaction do
       [first_transaction, second_transaction].each do |transaction|
-        #self.update_column(:transaction_id, transaction.id)
+        self.update_column(:transaction_id, transaction.id)
         transaction.update_attributes(:week_id => self.week_id, :fuel_delivery_id => self.id)
       end
     end

@@ -8,6 +8,214 @@ class Week < ApplicationRecord
   scope		:tax_year, lambda{|year| where(:tax_year => year)}
   scope   :week_number, lambda{|no,year| where(:number => no, :tax_year => year)}
 
+  def self.add_week(tax_year = 2019)
+    last_week = Week.last
+    new_week = Week.new
+    new_week.number = last_week.number < 52 ? last_week.number + 1 : 1
+    new_week.date = last_week.date + 1.week
+    new_week.tax_year = tax_year
+    new_week.save!
+    return new_week
+  end
+
+  def init_dispenser_sales
+    return unless self.dispenser_sales.empty?
+    puts "Not Empty"
+    [1,2,3,4,5,6].each do |number|
+      sale = self.dispenser_sales.new
+      sale.number = number
+      sale.save!
+    end
+  end
+
+  def value_of_inventory
+    return TankInventory.value_of_inventory(self)
+  end
+
+  def previous_week
+    return Week.where("id < ?",self.id).order("id desc").first
+  end
+
+  def date_range
+    return self.date-6.days..self.date
+  end
+
+  def dispenser_report
+    self.create_dispenser_report(self)
+  end
+
+  def fuel_profit_report
+    return WeekEstimatedProfit.week_report(self)
+  end
+
+  def fuel_profit_year_to_date_report
+    weeks = Week.tax_year(self.tax_year).where("id <= ?",self.id).order(:id)
+    return WeekEstimatedProfit.year_to_date_report(self.tax_year, weeks)
+  end
+
+  def fuel_balance_report
+    FuelBalanceReport.week(self)
+  end
+
+  def fuel_balance_year_to_date_report
+    FuelBalanceReport.year(self.tax_year)
+  end
+
+  def net_fuel_profit
+    sales = Transaction.fuel_sale.week(self.id).first.amount.to_f.round(2)
+    commission = Transaction.fuel_commission.week(self.id).first.amount.to_f.round(2)
+    inventory_before = self.previous_week.value_of_inventory.amount.round(2)
+    inventory_after = self.value_of_inventory.amount.round(2)
+    fuel_cost = self.fuel_deliveries.map{|fd| fd.total}.sum.to_f.round(2)
+    net = (sales + inventory_after - commission - fuel_cost - inventory_before).round(2)
+    return net, sales, commission, inventory_before, inventory_after, fuel_cost
+  end
+
+  def net_fuel_profit_year_to_date(weeks = nil)
+    weeks = Week.tax_year(self.tax_year).where("id <= ?", self.id).order(:id) if weeks.nil?
+    week_ids = weeks.map(&:id)
+    puts "Sales:  #{Transaction.fuel_sale.week(week_ids).count}"
+    sales = Transaction.fuel_sale.week(week_ids).map{|s| s.amount}.sum.to_f.round(2)
+    puts "Commissions: #{Transaction.fuel_commission.week(week_ids).count}"
+    commission = Transaction.fuel_commission.week(week_ids).map{|s| s.amount}.sum.to_f.round(2)
+    inventory_before = weeks.first.previous_week.value_of_inventory.amount.round(2)
+    inventory_after = weeks.last.value_of_inventory.amount.round(2)
+    puts "Fuel_cost:  #{Transaction.fuel_cost.week(week_ids).count}"
+    fuel_cost = Transaction.fuel_cost.week(week_ids).map{|s| s.amount}.sum.to_f.round(2)
+    net = (sales + inventory_after - commission - fuel_cost - inventory_before).round(2)
+    return net, sales, commission, inventory_before, inventory_after, fuel_cost
+  end
+
+  def self.migrate_commissions(save_results = false, tax_year = 2019)
+    weeks = Week.tax_year(tax_year).order("number desc")
+    #commissions = Transaction.fuel_commission.order(:date).to_a
+    array = []
+    weeks.each do |week|
+      net_sales = DispenserSale.net_for_week(week)
+      ideal_amount = (0.06 * net_sales.total_gallons).round(2)
+      range_amount = ideal_amount - 5.0 .. ideal_amount + 5.0
+      commissions = Transaction.fuel_commission.where(:week_id => nil).
+        where("date > ?",week.date).order(:date).limit(3)
+      commission = nil
+      puts "Week:  #{week.id}"
+      puts "\t TEMP: Range:  #{range_amount}"
+      commissions.each do |comm|
+        puts "\t Commission:  #{comm.amount.to_f}"
+        if range_amount.include?(comm.amount.to_f)
+          commission = comm
+          puts "\t MATCHED"
+          break
+        end
+      end
+      #commission = commissions.select{|c| c.date > week.date && range_amount.include?(c.amount.to_f)}.first
+      if commission.nil?
+        transaction_id = transaction_date = amount = nil
+      else
+        transaction_id = commission.id
+        transaction_date = commission.date.to_s
+        amount = commission.amount.to_f.round(2)
+        #commissions.pop
+      end
+      commission.update_column(:week_id, week.id) if save_results && !transaction_id.nil?
+      array << {:week_id => week.id, :week_date => week.date, :transaction_id => transaction_id,
+        :transaction_date => transaction_date, :amount => amount}
+    end
+    array
+  end
+
+  def self.migrate_deposits(save_results = false, tax_year = 2019)
+    weeks = Week.tax_year(tax_year).order("id desc")
+    #commissions = Transaction.fuel_commission.order(:date).to_a
+    array = []
+    matches = 0
+    weeks.each do |week|
+      net_sales = DispenserSale.net_for_week(week)
+      sales = net_sales.total_dollars
+      ranges_sales = sales - 5.0 .. sales + 5.0
+      deposits = Transaction.fuel_sale.where("date > ?",week.date).order(:date).limit(3).
+        select{|s| s.week_id.nil?}
+      deposit = nil
+      puts "Week:  #{week.id}"
+      puts "\t TEMP: Range:  #{ranges_sales}"
+      includes_deposit = false
+      deposits.each do |comm|
+        puts "\t Deposit:  #{comm.amount.to_f}"
+        if ranges_sales.include?(comm.amount.to_f)
+          deposit = comm
+          puts "\t MATCHED"
+          break
+        elsif ranges_sales.include?(comm.amount.to_f - 900.0)
+          deposit = comm
+          puts "\t MATCHED WITH DEPOSIT"
+          includes_deposit = true
+          break
+        end
+      end
+      #deposit = deposits.select{|c| c.date > week.date && ranges_sales.include?(c.amount.to_f)}.first
+      if deposit.nil?
+        transaction_id = transaction_date = amount = nil
+      else
+        matches += 1
+        transaction_id = deposit.id
+        transaction_date = deposit.date.to_s
+        amount = deposit.amount.to_f.round(2)
+        #deposits.pop
+      end
+      deposit.update_attributes(:week_id => week.id, :includes_deposit => includes_deposit) if save_results && !transaction_id.nil?
+      array << {:week_id => week.id, :week_date => week.date, :transaction_id => transaction_id,
+        :transaction_date => transaction_date, :amount => amount}
+    end
+    puts "MATCHES:  #{matches}"
+    array
+  end
+
+  def self.find_deposits(date_range)
+    weeks = Week.where(:date => date_range)
+    weeks.each do |week|
+      deposit = week.find_deposit
+      deposit_id = deposit.nil? ? nil : deposit.id
+      puts "Date:  #{week.date.to_s}  --  deposit_id:  #{deposit_id}"
+    end
+  end
+
+  def dispenser_sales_with_offset
+    names = DispenserSale.columns.map{|c| c.name}.
+      select{|c| c.include?("_cents") || c.include?("_volume")}.
+      delete_if{|c| c.include?("_adjustment")}.sort
+    translation = names.inject({}) {|hash,name| hash[name] = name.gsub("_volume","_gallons");hash}
+    column_names = names.inject([]) {|array,name| array << name.gsub("_volume","_gallons");array}
+    sales = self.dispenser_sales.order(:number)
+    results = []
+    sales.each do |sale|
+      object_hash = {}
+      sales_hash = sale.as_json.each do |key,value|
+        object_hash[key] = value.kind_of?(BigDecimal) ? value.to_f : value
+        unless (column = translation[key]).nil?
+          offset = DispenserOffset.get_offset(sale.number, column, self.date)
+          puts "Offset:  #{offset}"
+          if offset.kind_of?(Money)
+            puts "\t#{object_hash}\n\n"
+            object_hash[key] += 100 * offset.to_i
+          else
+            object_hash[key] += offset
+          end
+        end
+        next
+        if translation[key].nil?
+          object_hash[key] = value
+        else
+          column = translation[key]
+          offset = DispenserOffset.get_offset(sale.number, column, self.date)
+          puts "#{sale.number}  --  #{column}  --  #{value}  --  #{offset}"
+          object_hash[column] = value + offset
+        end
+      end
+      results << HashManager.new(object_hash)
+    end
+    return results
+  end
+
+=begin
   def dispenser_totals
     dispenser_sales = self.dispenser_sales
     regular_volume = dispenser_sales.map(&:regular_volume).sum
@@ -22,25 +230,6 @@ class Week < ApplicationRecord
       regular_volume, plus_volume, premium_volume, diesel_volume
   end
 
-  def self.find_deposits(date_range)
-    weeks = Week.where(:date => date_range)
-    weeks.each do |week|
-      deposit = week.find_deposit
-      deposit_id = deposit.nil? ? nil : deposit.id
-      puts "Date:  #{week.date.to_s}  --  deposit_id:  #{deposit_id}"
-    end
-  end
-
-  def self.add_week(tax_year = 2019)
-    last_week = Week.last
-    new_week = Week.new
-    new_week.number = last_week.number < 52 ? last_week.number + 1 : 1
-    new_week.date = last_week.date + 1.week
-    new_week.tax_year = tax_year
-    new_week.save!
-    return new_week
-  end
-
   def sales_to_date
     dispenser_rows = self.dispenser_sales
     regular_sales = dispenser_rows.map{|s| s.regular}.sum
@@ -51,10 +240,6 @@ class Week < ApplicationRecord
     return total_sales, regular_sales, plus_sales, premium_sales, diesel_sales
   end
 
-  def previous_week
-    return Week.where("id < ?",self.id).order("id desc").first
-  end
-
   def last_rate_per_gallon
     last_regular_delivery = FuelDelivery.where("regular_gallons > 0 and delivery_date < ?",self.date).order("id desc").first
     last_premium_delivery = FuelDelivery.where("premium_gallons > 0 and delivery_date < ?",self.date).order("id desc").first
@@ -62,15 +247,11 @@ class Week < ApplicationRecord
     return last_regular_delivery.regular_per_gallon.to_f,
       last_premium_delivery.premium_per_gallon.to_f, last_diesel_delivery.diesel_per_gallon.to_f
   end
-=begin
+
   def fuel_sales
     Transaction.where(:category => 'fuel_sale', :date => self.date_range)
   end
-=end
-  def date_range
-    return self.date-6.days..self.date
-  end
-=begin
+
   def dispenser_sales_by_grade
     sales = self.dispenser_sales
     results = {'regular' => {}, 'plus' => {}, 'premium' => {}, 'diesel' => {}}
@@ -84,11 +265,7 @@ class Week < ApplicationRecord
     results['diesel']['gallons'] = sales.map{|e| e.diesel_volume}.sum
     return results
   end
-=end
-  def dispenser_report
-    self.create_dispenser_report(self)
-  end
-=begin
+
   def dispenser_volumes
     gasoline_volume = dispenser_sales.map(&:regular_volume).sum +
       dispenser_sales.map(&:plus_volume).sum +
@@ -158,23 +335,6 @@ class Week < ApplicationRecord
   def dispenser_net(blended = false)
     return DispenserSalesTotal.net_sales_for_period(self.previous_week, self, blended)
   end
-=end
-  def fuel_profit_report
-    return WeekEstimatedProfit.week_report(self)
-  end
-
-  def fuel_profit_year_to_date_report
-    weeks = Week.tax_year(self.tax_year).where("id <= ?",self.id).order(:id)
-    return WeekEstimatedProfit.year_to_date_report(self.tax_year, weeks)
-  end
-
-  def fuel_balance_report
-    FuelBalanceReport.week(self)
-  end
-
-  def fuel_balance_year_to_date_report
-    FuelBalanceReport.year(self.tax_year)
-  end
 
   def estimated_gross_profit
     grades = gather_delivery_stats
@@ -200,16 +360,6 @@ class Week < ApplicationRecord
     end
     results['overall_per_gallon'] = results['total_margin'] / total_gallons
     return results, grades
-  end
-
-  def init_dispenser_sales
-    return unless self.dispenser_sales.empty?
-    puts "Not Empty"
-    [1,2,3,4,5,6].each do |number|
-      sale = self.dispenser_sales.new
-      sale.number = number
-      sale.save!
-    end
   end
 
   #private
@@ -302,67 +452,6 @@ class Week < ApplicationRecord
     return {'regular' => regular_hash, 'premium' => premium_hash, 'diesel' => diesel_hash}
   end
 
-  def dispenser_sales_with_offset
-    names = DispenserSale.columns.map{|c| c.name}.
-      select{|c| c.include?("_cents") || c.include?("_volume")}.
-      delete_if{|c| c.include?("_adjustment")}.sort
-    translation = names.inject({}) {|hash,name| hash[name] = name.gsub("_volume","_gallons");hash}
-    column_names = names.inject([]) {|array,name| array << name.gsub("_volume","_gallons");array}
-    sales = self.dispenser_sales.order(:number)
-    results = []
-    sales.each do |sale|
-      object_hash = {}
-      sales_hash = sale.as_json.each do |key,value|
-        object_hash[key] = value.kind_of?(BigDecimal) ? value.to_f : value
-        unless (column = translation[key]).nil?
-          offset = DispenserOffset.get_offset(sale.number, column, self.date)
-          puts "Offset:  #{offset}"
-          if offset.kind_of?(Money)
-            puts "\t#{object_hash}\n\n"
-            object_hash[key] += 100 * offset.to_i
-          else
-            object_hash[key] += offset
-          end
-        end
-        next
-        if translation[key].nil?
-          object_hash[key] = value
-        else
-          column = translation[key]
-          offset = DispenserOffset.get_offset(sale.number, column, self.date)
-          puts "#{sale.number}  --  #{column}  --  #{value}  --  #{offset}"
-          object_hash[column] = value + offset
-        end
-      end
-      results << HashManager.new(object_hash)
-    end
-    return results
-  end
-
-  def value_of_inventory
-    return TankInventory.value_of_inventory(self)
-  end
-
   # => Migration
-
-  def self.migrate_commissions(tax_year = 2019)
-    weeks = Week.tax_year(tax_year).order("number desc")
-    commissions = Transaction.fuel_commission.order(:date).to_a
-    array = []
-    weeks.each do |week|
-      commission = commissions.select{|c| c.date > week.date}.first
-      if commission.nil?
-        transaction_id = transaction_date = amount = nil
-      else
-        transaction_id = commission.id
-        transaction_date = commission.date.to_s
-        amount = commission.amount.to_f.round(2)
-        commissions.pop
-        puts "commissions:  #{commissions.map{|c| {:id => c.id, :amount => c.amount.to_f}}}"
-      end
-      array << {:week_id => week.id, :week_date => week.date, :transction_id => transaction_id,
-        :transaction_date => transaction_date, :amount => amount}
-    end
-    array
-  end
+=end
 end
