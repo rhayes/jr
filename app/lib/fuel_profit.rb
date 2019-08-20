@@ -39,7 +39,8 @@ class FuelProfit
 
   def build_grade_details_year_to_date_report(tax_year = 2019)
     weeks = Week.tax_year(tax_year).order(:id)
-    self.net_sales = DispenserSale.net_for_range_of_weeks(weeks.first, weeks.last)
+    self.net_sales = DispenserPeriodNet.create(weeks.first, weeks.last)
+    #self.net_sales = DispenserSale.net_for_range_of_weeks(weeks.first, weeks.last)
     self.fuel_detail = FuelDeliveryDetail.for_range_of_weeks_sales(weeks.first, weeks.last)
     self.grade_profit = GrossProfit.create(net_sales, fuel_detail)
   end

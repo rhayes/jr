@@ -76,6 +76,7 @@ class Week < ApplicationRecord
     week_ids = weeks.map(&:id)
     puts "Sales:  #{Transaction.fuel_sale.week(week_ids).count}"
     sales = Transaction.fuel_sale.week(week_ids).map{|s| s.amount}.sum.to_f.round(2)
+    #lease_payments =
     puts "Commissions: #{Transaction.fuel_commission.week(week_ids).count}"
     commission = Transaction.fuel_commission.week(week_ids).map{|s| s.amount}.sum.to_f.round(2)
     inventory_before = weeks.first.previous_week.value_of_inventory.amount.round(2)
@@ -213,6 +214,10 @@ class Week < ApplicationRecord
       results << HashManager.new(object_hash)
     end
     return results
+  end
+
+  def fuel_profit_beta
+    FuelProfitSpreadsheet.create_report_for_week(self)
   end
 
 =begin

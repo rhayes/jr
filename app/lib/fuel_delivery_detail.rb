@@ -21,7 +21,8 @@ class FuelDeliveryDetail < HashManager
   end
 
   def self.for_range_of_weeks_sales(beginning_week, ending_week)
-    net_sales = DispenserSale.net_for_range_of_weeks(beginning_week, ending_week)
+    #net_sales = DispenserSale.net_for_range_of_weeks(beginning_week, ending_week)
+    net_sales = DispenserPeriodNet.create(beginning_week, ending_week)
     array = []
     FuelDelivery::GRADES.each do |grade|
       offset = ending_week.tank_volume[grade]
