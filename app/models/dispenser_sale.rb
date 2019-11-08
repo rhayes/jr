@@ -8,16 +8,6 @@ class DispenserSale < ActiveRecord::Base
   monetize 	:plus_cents, with_model_currency: :plus_currency
   monetize 	:premium_cents, with_model_currency: :premium_currency
   monetize 	:diesel_cents, with_model_currency: :diesel_currency
-=begin
-  def self.dispenser_totals_for_week(week_id)
-    entries = self.where(:week_id => week_id)
-    dispensers = entries.map(&:number).uniq
-    results = {'regular' => {}, 'plus' => {}, 'premium' => {}, 'diesel' => {}}
-    dispensers.each do |dispenser|
-
-    end
-  end
-=end
 
   def self.sales_by_grade(week_id)
     entries = self.where(:week_id => week_id)
@@ -95,10 +85,26 @@ class DispenserSale < ActiveRecord::Base
     return self.diesel_volume_adjustment.to_f
   end
 
+  def regular_cents_adjustment
+    return self.regular_dollars_adjustment.to_f
+  end
+
+  def plus_cents_adjustment
+    return self.plus_dollars_adjustment.to_f
+  end
+
+  def premium_cents_adjustment
+    return self.premium_dollars_adjustment.to_f
+  end
+
+  def diesel_cents_adjustment
+    return self.diesel_dollars_adjustment.to_f
+  end
+
   def self.week_report_data(week)
     DispenserReport.create(week)
   end
-=begin
+
   def self.net_for_range_of_weeks(beginning_week, ending_week, blended = false)
     return NetDispenserReport.create(beginning_week, ending_week, blended)
     previous_week = beginning_week.previous_week
@@ -119,170 +125,17 @@ class DispenserSale < ActiveRecord::Base
     end
     net
   end
-=end
+
   def self.net_for_week(week, blended = false)
     DispenserSale.net_for_range_of_weeks(week, week, blended)
   end
-=begin
-  class NewNetDispenserReport < HashManager
-    def self.create(first_week, last_week, blended = false)
-      instance = NewNetDispenserReport.new({'dollars' => {}, 'gallons' => {}})
-      instance.build(first_week, last_week, blended)
-      instance
-    end
 
-    def build(beginning_week, ending_week, blended)
-      previous_week = beginning_week.previous_week
-      previous_week_total = DispenserReport.create(previous_week).adjusted_total
-      ending_week_total = DispenserReport.create(ending_week).adjusted_total
-      self._columns.each do |amount_type|
-        GRADES.each do |grade|
-          net_value = (ending_week_total[amount_type][grade] -
-            previous_week_total[amount_type][grade]).round(2)
-          self[amount_type].merge({grade => net_value})
-        end
-        unless blended
-          self[amount_type].regular = (self[amount_type].regular + 0.65 * self[amount_type].plus).round(2)
-          self[amount_type].premium = (self[amount_type].premium + 0.35 * self[amount_type].plus).round(2)
-          self[amount_type].plus = nil
-        end
-      end
-    end
-
-    def totals_array(interleaved = true)
-      array = []
-      dollars_gallons_order = ['dollars','gallons']
-      GRADES.each do |grade|
-        dollars_gallons_order.each {|type| array << self[type][grade]}
-      end
-      array
-    end
-
-    def total_gallons
-      gallons.regular + gallons.plus.to_f + gallons.premium + gallons.diesel
-    end
-
-    def total_dollars
-      dollars.regular + dollars.plus.to_f + dollars.premium + dollars.diesel
-    end
+  def self.to_hash_array
+    self.all.as_json
   end
 
-  class NetDispenserReport < HashManager
-    def totals_array(interleaved = true)
-      array = []
-      dollars_gallons_order = ['dollars','gallons']
-      GRADES.each do |grade|
-        dollars_gallons_order.each {|type| array << self[type][grade]}
-      end
-      array
-    end
-
-    def total_gallons
-      gallons.regular + gallons.plus.to_f + gallons.premium + gallons.diesel
-    end
-
-    def total_dollars
-      dollars.regular + dollars.plus.to_f + dollars.premium + dollars.diesel
-    end
+  def self.to_json_file
+    json = JSON.pretty_generate(self.all.as_json)
+    file = File.open(File.expand_path("~/Documents/dispensers.json"), 'w') {|file| file.write(json.force_encoding("UTF-8"))}
   end
-
-  class DispenserReport < HashManager
-    def self.create(week)
-      instance = DispenserReport.new({})
-      instance.build(week)
-      return instance
-    end
-
-    def build(week)
-      dispensers = week.dispenser_sales.order(:number)
-      dispensers.each do |dispenser|
-        dispenser_number = 'dispenser_' + dispenser.number.to_s
-        self.merge(init_dispenser_hash(dispenser_number))
-        ['dollars','gallons'].each do |amount_type|
-          GRADES.each do |grade|
-            database_column = (amount_type == 'dollars') ? grade + "_cents" : grade + "_gallons"
-            amount = dispenser.send(database_column).to_f
-            amount = amount / 100.0 if amount_type == 'dollars'
-            self[dispenser_number][amount_type][grade].amount = amount
-            offset = DispenserOffset.dispenser(dispenser.number).grade_type(database_column).
-              where("start_date <= ?", week.date).order(:start_date).last.offset.to_f
-            self[dispenser_number][amount_type][grade].offset = offset
-            adjustment = dispenser.send(database_column + "_adjustment")
-            self[dispenser_number][amount_type][grade].adjustment = adjustment
-            self[dispenser_number][amount_type][grade].total = amount + offset + adjustment
-          end
-        end
-      end
-    end
-
-    def total
-      totals = initial_total
-      _columns.each do |dispenser|
-        totals._columns.each do |amount_type|
-          GRADES.each do |grade|
-            totals[amount_type][grade] += self[dispenser][amount_type][grade].amount
-          end
-        end
-      end
-      return totals
-    end
-
-    def adjusted_total
-      totals = initial_total
-      _columns.each do |dispenser|
-        totals._columns.each do |amount_type|
-          GRADES.each do |grade|
-            totals[amount_type][grade] += self[dispenser][amount_type][grade].total
-          end
-        end
-      end
-      return rounded(totals)
-    end
-
-    def totals_array(adjusted = true, interleaved = true)
-      array = []
-      dollars_gallons_order = ['dollars','gallons']
-      totals = adjusted ? self.adjusted_total : self.total
-      GRADES.each do |grade|
-        dollars_gallons_order.each {|type| array << totals[type][grade]}
-      end
-      array
-    end
-
-    def net_amounts_week
-
-    end
-
-    private
-
-    def initial_total
-      hash = {'dollars' => {}, 'gallons' => {}}
-      hash.keys.each do |amount_type|
-        GRADES.each {|grade| hash[amount_type].merge!({grade => 0.0})}
-      end
-      return HashManager.new(hash)
-    end
-
-    def rounded(totals)
-      totals._columns.each do |amount_type|
-        GRADES.each {|grade| totals[amount_type][grade] = totals[amount_type][grade].round(2)}
-      end
-      totals
-    end
-
-    def init_dispenser_hash(dispenser_number)
-      dispenser_hash = {dispenser_number => {}}
-      ['dollars','gallons'].each do |amount_type|
-        amount_type_hash = {amount_type => {}}
-        GRADES.each do |grade|
-          amount_type_hash[amount_type][grade] = {'amount' => 0.0, 'offset' => 0.0,
-            'adjustment' => 0.0, 'total' => 0.0}
-        end
-        dispenser_hash[dispenser_number].merge!(amount_type_hash)
-      end
-      return dispenser_hash
-    end
-
-  end
-=end
 end

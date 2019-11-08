@@ -10,7 +10,7 @@ class FuelDeliveryDetail < HashManager
   end
 
   def self.for_week_sales(week)
-    net_sales = DispenserSale.net_for_range_of_weeks(week, week)
+    net_sales = DispenserPeriodNet.create(week, week)
     array = []
     FuelDelivery::GRADES.each do |grade|
       offset = week.tank_volume[grade]
@@ -21,7 +21,6 @@ class FuelDeliveryDetail < HashManager
   end
 
   def self.for_range_of_weeks_sales(beginning_week, ending_week)
-    #net_sales = DispenserSale.net_for_range_of_weeks(beginning_week, ending_week)
     net_sales = DispenserPeriodNet.create(beginning_week, ending_week)
     array = []
     FuelDelivery::GRADES.each do |grade|
@@ -53,6 +52,12 @@ class FuelDeliveryDetail < HashManager
         ending_date, grade_info.gallons, grade_info.offset)
       self.merge({grade_info.grade => delivery_info})
     end
+    regular_gallons = self.regular.deliveries.map(&:gallons).sum
+    premium_gallons = self.premium.deliveries.map(&:gallons).sum
+    diesel_gallons = self.diesel.deliveries.map(&:gallons).sum
+    total_gallons = regular_gallons + premium_gallons + diesel_gallons
+    self.merge({:summary => {:regular => regular_gallons, :premium => premium_gallons,
+      :diesel => diesel_gallons, :total => total_gallons}})
   end
 
   def value_of

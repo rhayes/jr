@@ -28,6 +28,24 @@ class Week < ApplicationRecord
     end
   end
 
+  def self.to_hash_array
+    self.all.as_json
+  end
+
+  def self.to_json_file
+    json = JSON.pretty_generate(self.all.as_json)
+    file = File.open(File.expand_path("~/Documents/weeks.json"), 'w') {|file| file.write(json.force_encoding("UTF-8"))}
+  end
+
+  def add_commission(amount, date, check_number, override = false)
+    unless override || Transaction.fuel_commission.where(:week_id => self.id).first.nil?
+      raise "Commssion already exits!"
+    end
+    Transaction.create(:date => date, :check_number => check_number, :amount_cents => 100 * amount,
+      :category => 'fuel_commission', :week_id => self.id)
+    Transaction.calculate_balances
+  end
+
   def value_of_inventory
     return TankInventory.value_of_inventory(self)
   end
@@ -62,8 +80,12 @@ class Week < ApplicationRecord
   end
 
   def net_fuel_profit
-    sales = Transaction.fuel_sale.week(self.id).first.amount.to_f.round(2)
-    commission = Transaction.fuel_commission.week(self.id).first.amount.to_f.round(2)
+    sale = Transaction.fuel_sale.week(self.id).first
+    sales = sale.amount.to_f.round(2)
+    sales -= 900.0 if sale.includes_lease
+    #sales = Transaction.fuel_sale.week(self.id).first.amount.to_f.round(2)
+    transaction = Transaction.fuel_commission.week(self.id).first
+    commission = transaction.nil? ? 0.0 : transaction.amount.to_f.round(2)
     inventory_before = self.previous_week.value_of_inventory.amount.round(2)
     inventory_after = self.value_of_inventory.amount.round(2)
     fuel_cost = self.fuel_deliveries.map{|fd| fd.total}.sum.to_f.round(2)
@@ -216,8 +238,20 @@ class Week < ApplicationRecord
     return results
   end
 
+  def dispenser_report_beta
+    DispenserReportSpreadsheet.create(self)
+  end
+
   def fuel_profit_beta
-    FuelProfitSpreadsheet.create_report_for_week(self)
+    FuelProfitSpreadsheet.create_weekly_report(self)
+  end
+
+  def fuel_profit_detailed_annual_beta
+    FuelProfitSpreadsheet.create_detailed_annual_report(self)
+  end
+
+  def fuel_profit_summary_annual_beta
+    FuelProfitSpreadsheet.create_summary_annual_report(self)
   end
 
 =begin

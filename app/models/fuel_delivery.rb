@@ -9,6 +9,38 @@ class FuelDelivery < ActiveRecord::Base
 
   GRADES = ['regular','premium','diesel']
 
+  def self.to_hash_array
+    array = []
+    self.all.each do |delivery|
+      hash = {:parent => {:id => delivery.id, :week_id => delivery.week_id,
+        :date => delivery.delivery_date.to_s, :invoice_number => delivery.invoice_number,
+        :monthly_tank_charge => delivery.monthly_tank_charge.to_f,
+        :adjustment => delivery.adjustment_cents.to_f / 100.0,
+        :storage_tank_fee => delivery.storage_tank_fee}, :children => []}
+      ['regular', 'premium', 'diesel'].each do |grade_name|
+        next unless delivery[grade_name + "_gallons"] > 0
+        hash[:children] << {:grade_name => grade_name, :grade_id => nil,
+          :fuel_delivery_id => delivery.id,  :gallons => delivery[grade_name + "_gallons"],
+          :per_gallon => delivery[grade_name + "_per_gallon"]}
+      end
+      array << hash
+    end
+    array
+    #self.all.as_json
+  end
+
+  def self.to_json_file
+    json = JSON.pretty_generate(to_hash_array)
+    file = File.open(File.expand_path("~/Documents/fuel_deliveries.json"), 'w') {|file| file.write(json.force_encoding("UTF-8"))}
+  end
+
+  def self.totals_json_file
+    array = self.all.order(:id).inject([]) {|array,fd|
+      array << {:id => fd.id, :total => fd.total.to_f}; array}
+    json = JSON.pretty_generate(array)
+    file = File.open(File.expand_path("~/Documents/fuel_delivery_total.json"), 'w') {|file| file.write(json.force_encoding("UTF-8"))}
+  end
+
   def regular_total
     total = (self.regular_gallons * self.regular_per_gallon +
       self.regular_gallons * self.storage_tank_fee).round(2)
@@ -55,6 +87,15 @@ class FuelDelivery < ActiveRecord::Base
     return self[grade + "_per_gallon"].to_f
   end
 
+  def self.summary(weeks)
+    deliveries = self.where(:week_id => weeks.map(&:id))
+    regular = deliveries.map(&:regular_gallons).sum
+    premium = deliveries.map(&:premium_gallons).sum
+    diesel = deliveries.map(&:diesel_gallons).sum
+    return HashManager.new({:regular => regular, :premium => premium, :diesel => diesel,
+      :total => regular + premium + diesel})
+  end
+
   def self.from_date_by_grade_descending(end_date, grade)
     fuel_deliveries = FuelDelivery.where("delivery_date <= ?", end_date).
       where("#{grade + "_gallons"} > 0").order("delivery_date desc")
@@ -98,8 +139,8 @@ class FuelDelivery < ActiveRecord::Base
     return true
   end
 
-  def match_transaction
-    dates = self.delivery_date..self.delivery_date+10.days
+  def match_transaction(dates = nil)
+    dates = self.delivery_date..self.delivery_date+10.days if dates.nil?
     transaction = Transaction.fuel_cost.
       where(:amount_cents => self.total.cents, :date => dates).first
     return false if transaction.nil?
@@ -183,6 +224,12 @@ class FuelDelivery < ActiveRecord::Base
       return fuel_deliveries.slice(0..index) if total_gallons >= gallons
     end
     raise "FuelDelivery.get_descending_deliveries reached end"
+  end
+  class FuelSummary < HashManager
+    def grade_array
+      grades = FuelDelivery::GRADES + ['total']
+      grades.inject([]) {|array,grade| array << self.send(grade); array}
+    end
   end
 end
 =begin

@@ -6,8 +6,10 @@ class DispenserReportSpreadsheet < SpreadsheetWorkbook
   end
 
   def build(week)
-    dispenser_net = DispenserSale.net_for_week(week, true)
-    dispenser_total = DispenserSale.week_report_data(week)
+    #dispenser_net = DispenserSale.net_for_week(week, true)
+    #dispenser_total = DispenserSale.week_report_data(week)
+    dispenser_net = DispenserPeriodNet.create(week, week)
+    dispenser_total = DispenserWeekSummary.create(week)
 		sheet = create_worksheet
 
     set_column_widths(sheet, [12, 18, 18, 18, 18, 18, 18, 18, 18])

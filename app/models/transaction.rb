@@ -18,6 +18,46 @@ class Transaction < ActiveRecord::Base
   monetize 	:amount_cents, with_model_currency: :amount_currency
   monetize 	:balance_cents, with_model_currency: :balance_currency
 
+  TRANSACTION_TYPES = ['not_set','fuel_cost','fuel_sale','fuel_commission','loan_payment',
+    'rent','renovation','fees','tax_prep','insurance','maintenance',
+    'property_tax','business_property','personal']
+  RENT_CENTS = 90000
+
+  def self.to_hash_array
+    array = []
+    self.all.each do |transaction|
+      t = transaction
+      if t.category == 'fuel_sale' and t.includes_lease
+        array << build_hash(t.tax_year, t.date, t.include, t.check_number,
+          t.amount_cents - RENT_CENTS, t.category, t.description, t.balance_cents - RENT_CENTS,
+          t.manually_verified, t.fuel_delivery_id, t.week_id)
+        array << build_hash(t.tax_year, t.date, t.include, "", RENT_CENTS, "rent",
+          t.description, t.balance_cents)
+      else
+        array << build_hash(t.tax_year, t.date, t.include, t.check_number, t.amount_cents,
+          t.category, t.description, t.balance_cents, t.manually_verified,
+          t.fuel_delivery_id, t.week_id)
+      end
+    end
+    array
+  end
+
+  def self.build_hash(tax_year, date, include, check_number, amount_cents, category,
+   description, balance_cents, manually_verified = false, fuel_delivery_id = nil,
+   week_id = nil)
+    transaction_type_id = TRANSACTION_TYPES.index(category)
+    {:tax_year => tax_year, :date => date.to_s, :include => include, :check_number => check_number,
+      :amount_cents => amount_cents, :transaction_type_id => transaction_type_id,
+      :description => description, :balance_cents => balance_cents,
+      :manually_verified => manually_verified, :fuel_delivery_id => fuel_delivery_id,
+      :week_id => week_id}
+  end
+
+  def self.to_json_file
+    json = JSON.pretty_generate(self.to_hash_array)
+    file = File.open(File.expand_path("~/Documents/transactions.json"), 'w') {|file| file.write(json.force_encoding("UTF-8"))}
+  end
+
   def is_debit?
     return self.type_of.downcase == 'debit'
   end

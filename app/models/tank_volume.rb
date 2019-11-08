@@ -2,6 +2,25 @@ class TankVolume < ActiveRecord::Base
 
   belongs_to    :week
 
+  def self.to_hash_array
+    array = []
+    self.all.each do |volume|
+      hash = {:parent => {:id => volume.id, :week_id => volume.week_id}, :children => []}
+      ['regular', 'premium', 'diesel'].each do |grade_name|
+        hash[:children] << {:grade_name => grade_name, :tank_volume_id => nil,
+          :grade_id => nil, :gallons => volume.send(grade_name)}
+      end
+      array << hash
+    end
+    array
+    #self.all.as_json
+  end
+
+  def self.to_json_file
+    json = JSON.pretty_generate(to_hash_array)
+    file = File.open(File.expand_path("~/Documents/tank_volumes.json"), 'w') {|file| file.write(json.force_encoding("UTF-8"))}
+  end
+
   def self.xxx(first_date, last_date)
     raise "#{last_date.to_s} is before #{first_date.to_s}" if last_date <= first_date
     first_week = Week.where(:date => first_date).first
@@ -15,6 +34,11 @@ class TankVolume < ActiveRecord::Base
 
   def total
     return regular + premium + diesel
+  end
+
+  def grade_array
+    grades = FuelDelivery::GRADES + ['total']
+    grades.inject([]) {|array,grade| array << self.send(grade); array}
   end
 
   def inventory(offset = false)
