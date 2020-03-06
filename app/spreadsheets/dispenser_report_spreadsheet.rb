@@ -54,7 +54,7 @@ class DispenserReportSpreadsheet < SpreadsheetWorkbook
     columns.each {|column| sheet.row(row).push column}
 
     filename = "#{week.date.year}_#{week.date.month.to_s.rjust(2,'0')}_#{week.date.day.to_s.rjust(2,'0')}"
-    file_path = File.expand_path("~/Documents/jr_reports/#{week.tax_year}/weekly_dispenser_reports/dsp_#{filename}.xls")
+    file_path = File.expand_path("~/Documents/jr_reports/#{week.tax_year}/dispenser_reports/dsp_#{filename}.xls")
     write file_path
   end
 

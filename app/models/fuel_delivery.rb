@@ -18,7 +18,7 @@ class FuelDelivery < ActiveRecord::Base
         :adjustment => delivery.adjustment_cents.to_f / 100.0,
         :storage_tank_fee => delivery.storage_tank_fee}, :children => []}
       ['regular', 'premium', 'diesel'].each do |grade_name|
-        next unless delivery[grade_name + "_gallons"] > 0
+        next unless delivery[grade_name + "_gallons"] != 0
         hash[:children] << {:grade_name => grade_name, :grade_id => nil,
           :fuel_delivery_id => delivery.id,  :gallons => delivery[grade_name + "_gallons"],
           :per_gallon => delivery[grade_name + "_per_gallon"]}
@@ -39,6 +39,22 @@ class FuelDelivery < ActiveRecord::Base
       array << {:id => fd.id, :total => fd.total.to_f}; array}
     json = JSON.pretty_generate(array)
     file = File.open(File.expand_path("~/Documents/fuel_delivery_total.json"), 'w') {|file| file.write(json.force_encoding("UTF-8"))}
+  end
+
+  def post_transaction(description, date = Date.today)
+    transaction_date = date.kind_of?(String) ? Date.parse(date) : date
+    transactions = self.transactions
+    raise "Can't manage two or more transactons!" if transactions.count > 1
+    if transactions.empty?
+      Transaction.create(:date => transaction_date, :week_id => self.week_id,
+        :amount_cents => total.to_money.cents, :category => 'fuel_cost',
+        :description => description, :fuel_delivery_id => self.id)
+    else
+      transactions.first.update_attributes(:date => transaction_date, :week_id => self.week_id,
+        :amount_cents => total.to_money.cents, :category => 'fuel_cost',
+        :description => description)
+    end
+    Transaction.calculate_balances
   end
 
   def regular_total
@@ -85,6 +101,10 @@ class FuelDelivery < ActiveRecord::Base
 
   def per_gallon(grade)
     return self[grade + "_per_gallon"].to_f
+  end
+
+  def gallons_hash
+    ['regular','premium','diesel'].inject({}) {|h,name| h[name] = self[name + "_gallons"]; h}
   end
 
   def self.summary(weeks)

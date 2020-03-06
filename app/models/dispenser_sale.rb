@@ -17,6 +17,28 @@ class DispenserSale < ActiveRecord::Base
     return results
   end
 
+  def self.total_all(field = 'gallons')
+    array = []
+    if field == 'gallons'
+      ['regular','plus','premium','diesel'].each do |grade|
+        array << DispenserSale.pluck(grade + '_volume').map{|amount| amount.to_f}.sum.round(2)
+      end
+    elsif field == 'dollars'
+      ['regular','plus','premium','diesel'].each do |grade|
+        array << DispenserSale.all.map{|sale| sale.send(grade).to_f}.sum.round(2)
+      end
+    elsif field == 'gallons_adjustment'
+      ['regular','plus','premium','diesel'].each do |grade|
+        array << DispenserSale.all.map{|sale| sale.send(grade+"_"+field).to_f}.sum.round(2)
+      end
+    elsif field == 'dollars_adjustment'
+      ['regular','plus','premium','diesel'].each do |grade|
+        array << DispenserSale.all.map{|sale| sale.send(grade+"_"+field).to_f}.sum.round(2)
+      end
+    end
+    array
+  end
+
   def self.confirm_week(tax_year = Date.today.year)
     array = []
     sales = DispenserSale.joins(:week).select("dispenser_sales.id, dispenser_sales.date, weeks.id as week_id")

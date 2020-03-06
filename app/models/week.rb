@@ -4,11 +4,12 @@ class Week < ApplicationRecord
   has_one     :tank_volume
   has_many    :fuel_deliveries
   has_many    :dispenser_sales
+  has_many    :transactions
 
   scope		:tax_year, lambda{|year| where(:tax_year => year)}
   scope   :week_number, lambda{|no,year| where(:number => no, :tax_year => year)}
 
-  def self.add_week(tax_year = 2019)
+  def self.add_week(tax_year = 2020)
     last_week = Week.last
     new_week = Week.new
     new_week.number = last_week.number < 52 ? last_week.number + 1 : 1
@@ -84,8 +85,9 @@ class Week < ApplicationRecord
     sales = sale.amount.to_f.round(2)
     sales -= 900.0 if sale.includes_lease
     #sales = Transaction.fuel_sale.week(self.id).first.amount.to_f.round(2)
-    transaction = Transaction.fuel_commission.week(self.id).first
-    commission = transaction.nil? ? 0.0 : transaction.amount.to_f.round(2)
+    #transaction = Transaction.fuel_commission.week(self.id).first
+    #commission = transaction.nil? ? 0.0 : transaction.amount.to_f.round(2)
+    commission = Transaction.fuel_commission.week(self.id).map{|t| t.amount.to_f}.sum.round(2)
     inventory_before = self.previous_week.value_of_inventory.amount.round(2)
     inventory_after = self.value_of_inventory.amount.round(2)
     fuel_cost = self.fuel_deliveries.map{|fd| fd.total}.sum.to_f.round(2)
@@ -144,6 +146,56 @@ class Week < ApplicationRecord
         :transaction_date => transaction_date, :amount => amount}
     end
     array
+  end
+
+  def post_data
+    lines = File.readlines(File.expand_path("~/Documents/jr_reports/scripts/week_#{self.id}.txt"))
+    str = ""
+    objects = []
+    lines.dup.each do |line|
+      line = line.strip
+      next if line.size == 0
+      if line[-1] == '='
+        str += line.gsub!(/\=$/,'').strip
+      else
+      objects << PostingObject.new(JSON.parse(str + line.strip))
+        str = ""
+      end
+    end
+    objects.each do |object|
+      if object.is_fuel_delivery?
+        fd = FuelDelivery.where(:invoice_number => object.invoice_number,
+          :week_id => self.id, :delivery_date => object.date).first_or_create!
+        fd.monthly_tank_charge = object.monthly_tank_charge
+        object.grades.each do |grade_object|
+          fd[grade_object.grade + "_gallons"] = grade_object.gallons
+          fd[grade_object.grade + "_per_gallon"] = grade_object.per_gallon
+        end
+        fd.save!
+      elsif object.is_tank_volume?
+        volume = TankVolume.where(:week_id => self.id).first_or_create!
+        object.grades.each do |grade_object|
+          volume[grade_object.grade] = grade_object.gallons
+        end
+        volume.save!
+      elsif object.is_dispenser_sales?
+        sales = DispenserSale.where(:week_id => self.id, :number => object.number).first_or_create!
+        object.grades.each do |grade_object|
+          grade = grade_object.grade
+          sales[grade + "_cents"] = grade_object.dollars.to_money.cents
+          sales[grade + "_volume"] = grade_object.gallons
+          sales[grade + "_dollars_adjustment"] = -grade_object.dollars_adjustment
+          sales[grade + "_volume_adjustment"] = -grade_object.gallons_adjustment
+          sales.save!
+          #dsg.gallons = grade_object.gallons
+          #dsg.dollars_cents = grade_object.dollars.to_money.cents
+          #dsg.gallons_adjustment = grade_object.gallons_adjustment
+          #dsg.dollars_adjustment_cents = grade_object.dollars_adjustment.to_money.cents
+          #dsg.save!
+        end
+      end
+    end
+    objects
   end
 
   def self.migrate_deposits(save_results = false, tax_year = 2019)
@@ -493,4 +545,16 @@ class Week < ApplicationRecord
 
   # => Migration
 =end
+
+  class PostingObject < HashManager
+    def is_fuel_delivery?
+      self.type == 'fd'
+    end
+    def is_tank_volume?
+      self.type == 'tv'
+    end
+    def is_dispenser_sales?
+      self.type == 'ds'
+    end
+  end
 end

@@ -299,6 +299,7 @@ class WeekEstimatedProfit < HashManager
       end
 
       def build(week)
+        puts "Grade:  #{self.grade}"
         current_volume = week.tank_volume[self.grade]
         fuel_deliveries = FuelDelivery.where("delivery_date <= ?",week.date).
           where("#{delivered_gallons_column} > 0").order("delivery_date desc")
