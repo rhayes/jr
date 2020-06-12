@@ -149,6 +149,10 @@ class Week < ApplicationRecord
   end
 
   def post_data
+    if id >= 180
+      PostWeeklyData.perform(self)
+      return
+    end
     lines = File.readlines(File.expand_path("~/Documents/jr_reports/scripts/week_#{self.id}.txt"))
     str = ""
     objects = []

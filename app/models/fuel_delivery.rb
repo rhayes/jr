@@ -5,6 +5,8 @@ class FuelDelivery < ActiveRecord::Base
   #  :foreign_key => 'transaction_id', :optional => true
   has_many      :transactions
 
+  scope   :unmatched, -> {where(:transaction_id => nil)}
+
   monetize 	:monthly_tank_charge_cents, with_model_currency: :monthly_tank_charge_currency
 
   GRADES = ['regular','premium','diesel']
