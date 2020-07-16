@@ -43,7 +43,7 @@ class PostWeeklyData
     entry_number = 0
     loop do
       result = find_keyword('Invoice No', row.idx)
-      break if (result == false) || !next_row[0].kind_of?(Fixnum)
+      break if (result == false) || !next_row[0].kind_of?(Integer)
       sequence = week.id.to_s + "-" + entry_number.to_s.rjust(3,'0')
       delivery = FuelDelivery.find_by_posting_sequence(sequence)
       delivery = FuelDelivery.new(:posting_sequence => sequence) if delivery.nil?
@@ -52,7 +52,7 @@ class PostWeeklyData
         :monthly_tank_charge_cents => Money.new(100*row[2]).cents,
         :adjustment_cents => Money.new(100*row[3]).cents)
       loop do
-        break if row[4].nil?
+        break if row[4].nil? || row[4] == 'TOTAL'
         grade_name = row[4]
         delivery[grade_name + "_gallons"] = row[5]
         delivery[grade_name + "_per_gallon"] = row[6]
@@ -67,11 +67,11 @@ class PostWeeklyData
     self.row = sheet.row(0)
     loop do
       result = find_keyword('Dispenser', row.idx)
-      break if (result == false) || !next_row[0].kind_of?(Fixnum)
+      break if (result == false) || !next_row[0].kind_of?(Integer)
       sales = DispenserSale.where(:week_id => week.id, :number => row[0]).first_or_create!
       loop do
         grade_name = row[1]
-        break if grade_name.nil?
+        break if grade_name.nil? || grade_name == 'TOTAL'
         sales[grade_name + "_cents"] = Money.new(100*row[3]).cents
         sales[grade_name + "_volume"] = row[2]
         sales[grade_name + "_dollars_adjustment"] = -row[5]

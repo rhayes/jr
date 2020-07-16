@@ -43,7 +43,7 @@ class HashDataModel
     hash.each do |key,value|
       if key.is_a?(String)
         key_name = key
-      elsif key.is_a?(Fixnum) or key.is_a?(Symbol)
+      elsif key.is_a?(Integer) or key.is_a?(Symbol)
         key_name = key.to_s
       else
         raise "hash keys must be a String" unless key.is_a?(String)
